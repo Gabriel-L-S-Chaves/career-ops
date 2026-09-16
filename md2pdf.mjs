@@ -3,7 +3,9 @@
 // Uso: node md2pdf.mjs data/dossie-empresa.md output/dossie-empresa.pdf
 // Ferramenta local do usuário; não faz parte do career-ops upstream.
 
-import { readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
 const [, , input, output] = process.argv;
@@ -103,12 +105,30 @@ const html = `<meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</s
 const tmp = output.replace(/\.pdf$/, '.__tmp.html');
 writeFileSync(tmp, html, 'utf-8');
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-  args: ['--no-sandbox']
-});
+// Playwright resolves its own browser by default, which is what works on a
+// normal machine. Only override that when an explicit binary is given, or when
+// a sandboxed environment ships a pinned build at a known path — hardcoding the
+// container path made this script fail everywhere else.
+const pinned = process.env.CAREER_OPS_CHROMIUM;
+const sandboxed = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const executablePath = pinned || (existsSync(sandboxed) ? sandboxed : undefined);
+
+let browser;
+try {
+  browser = await chromium.launch({
+    ...(executablePath ? { executablePath } : {}),
+    args: ['--no-sandbox']
+  });
+} catch (err) {
+  console.error(`Não foi possível iniciar o Chromium: ${err.message}`);
+  console.error('Instale o navegador com `npx playwright install chromium`,');
+  console.error('ou aponte um binário existente em CAREER_OPS_CHROMIUM.');
+  process.exit(1);
+}
 const page = await browser.newPage();
-await page.goto('file://' + process.cwd() + '/' + tmp, { waitUntil: 'networkidle' });
+// resolve() + pathToFileURL handles absolute output paths and spaces in names;
+// concatenating cwd with the path broke both.
+await page.goto(pathToFileURL(resolve(tmp)).href, { waitUntil: 'networkidle' });
 await page.pdf({ path: output, format: 'A4', printBackground: true });
 await browser.close();
 unlinkSync(tmp);

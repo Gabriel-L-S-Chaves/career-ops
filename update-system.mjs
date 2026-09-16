@@ -390,6 +390,12 @@ const USER_PATHS = [
   'opencode.json',
   '.claude/settings.json',
   '.claude/hooks/',
+  // Local user tooling that does not exist upstream. Registered here so the
+  // coverage guard can classify it and so `apply` never overwrites or drops it.
+  // `.claude/skills/` is a SYSTEM_PATHS prefix, so a user-authored skill needs
+  // its own explicit USER_PATHS entry to stay protected.
+  'md2pdf.mjs',
+  '.claude/skills/radar-vagas/',
 ];
 
 function parseVersionFile(raw) {

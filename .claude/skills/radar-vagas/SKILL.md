@@ -183,7 +183,12 @@ SQL avançado como requisito central · Looker/Metabase/Tableau como core · cap
 
 **Setor fora de fintech** → penalização leve **se a vaga for remota**; descarte se for presencial fora de Goiânia sem compensação.
 
-### 6. Dedup
+### 6. Regime de contratação
+**CLT e PJ são aceitos.** PJ exige remuneração **equivalente** ao CLT — não o mesmo valor nominal. Ver a conta em `modes/_profile.md`.
+
+Ao encontrar vaga PJ: **não descartar**, mas registrar no achado que o valor precisa passar no teste de equivalência.
+
+### 7. Dedup
 Cruzar com `data/applications.md` e `data/scan-history.tsv`.
 Mesma empresa e mesmo cargo → **não reavaliar**, atualizar a linha existente.
 Empresa igual com cargo diferente → é vaga nova; registrar o ID do anúncio nas notas.

@@ -390,12 +390,16 @@ const USER_PATHS = [
   'opencode.json',
   '.claude/settings.json',
   '.claude/hooks/',
-  // Local user tooling that does not exist upstream. Registered here so the
-  // coverage guard can classify it and so `apply` never overwrites or drops it.
-  // `.claude/skills/` is a SYSTEM_PATHS prefix, so a user-authored skill needs
-  // its own explicit USER_PATHS entry to stay protected.
+  // Local user tooling with no upstream counterpart. Registered so the
+  // SYSTEM_PATHS coverage guard can classify it and `apply` never ships over it.
+  //
+  // Only paths OUTSIDE every SYSTEM_PATHS prefix belong here. A user-authored
+  // file nested under one (e.g. a custom skill in `.claude/skills/`) must NOT be
+  // listed: `apply` checks the prefix out, the safety check then sees a USER_PATHS
+  // match among the touched files, and the whole update aborts. Such a file needs
+  // no entry anyway — `git checkout <ref> -- <dir>` never deletes paths the ref
+  // lacks, and rollback only removes additions relative to HEAD.
   'md2pdf.mjs',
-  '.claude/skills/radar-vagas/',
 ];
 
 function parseVersionFile(raw) {

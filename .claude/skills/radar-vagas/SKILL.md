@@ -86,34 +86,46 @@ Grupo Boticário (franquias + pagamentos) · iFood / iFood Pago · Mercos · UpF
 
 ## Consultas de busca
 
-Montar as queries combinando **cargo × segmento × modalidade**.
+**Aprendido na varredura de 16/09: `site:` funciona, busca ampla não.**
 
-### Por board de empresa
+As queries com `site:` devolveram vagas específicas com ID e título. As genéricas ("vaga analista operações fintech remoto") devolveram apenas páginas de listagem do Indeed e do Glassdoor, sem anúncio nenhum. **Comece sempre por `site:` e só use busca ampla para descobrir empresa nova.**
+
+### 1ª linha — por board de empresa (use isto primeiro)
+
 ```
-site:asaas.gupy.io analista operações
+site:asaas.gupy.io analista operações produto dados
+site:pagseguro.gupy.io analista conciliação pagamentos
 site:job-boards.greenhouse.io/stone business analyst remoto
+site:grupoboticario.gupy.io analista operações financeiras remoto
 site:{empresa}.gupy.io {cargo}
 ```
 
-### Por cargo e segmento
+Dá para agrupar boards com `OR` numa query só:
 ```
-vaga "analista de operações" adquirência remoto 2026
-vaga conciliação "meios de pagamento" remoto
-"product operations" fintech pagamentos remoto Brasil
-vaga "revenue operations" fintech B2B remoto
-"analista de produto" pagamentos Pix adquirência remoto
+site:cielo.gupy.io OR site:picpay.gupy.io OR site:celcoin.gupy.io analista operações
 ```
 
-### Por combinação rara — prioridade máxima
+### 2ª linha — por cargo e segmento (só para descobrir empresa nova)
+
+```
+vaga "analista de operações" adquirência remoto 2026
+"product operations" fintech pagamentos remoto Brasil
+vaga "antecipação de recebíveis" analista operações
+```
+
+⚠️ Espere páginas de agregador. Use para **mapear empresas**, não para achar vaga.
+
+### 3ª linha — combinações raras (prioridade máxima quando retornam)
+
 ```
 vaga operações "inteligência artificial" fintech pagamentos remoto
 vaga franquias "meios de pagamento" analista
 vaga conciliação chargeback adquirência remoto
 vaga operações BACEN "arranjo de pagamento"
-vaga "antecipação de recebíveis" analista operações
 ```
 
-### Tier B — o canal menos disputado
+### 4ª linha — Tier B, o canal menos disputado
+
 ```
 {empresa} linkedin vagas contratando
 site:linkedin.com/posts {empresa} vaga

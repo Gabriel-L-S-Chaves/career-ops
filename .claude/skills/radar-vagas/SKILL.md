@@ -138,24 +138,39 @@ Fintechs emergentes anunciam vaga em post de LinkedIn, sem ATS. Não há concorr
 
 ## Filtros — aplicar nesta ordem
 
-### 1. Localização (ELIMINATÓRIO)
-Só **100% remoto** ou **presencial/híbrido em Goiânia-GO**.
+### 1. Localização (REVISTO 16/09 — não é mais eliminatório absoluto)
 
-- Modalidade não declarada → **não descartar**; marcar "confirmar modalidade"
-- Híbrido ou presencial em SP, RJ, Curitiba, POA, Joinville, Barueri → **descartar**
-- "Remoto para quem não mora em X" onde X não é Goiás → **passa**
+Ordem de preferência:
 
-### 2. Idioma (ELIMINATÓRIO)
+1. **100% remoto** — preferência, sem ressalva
+2. **Presencial ou híbrido em Goiânia-GO** — equivale a remoto
+3. **Fora de Goiânia** → **avaliar, não descartar.** Registrar explicitamente se compensa:
+   - a empresa custeia a mudança, **ou**
+   - salto relevante de cargo (Analista → Coordenador, Especialista, Sênior), **ou**
+   - salto relevante de salário
+4. **Modalidade não declarada** → marcar "confirmar modalidade"
+
+Motivo da mudança: o candidato quer sair da empresa atual o quanto antes. Localização virou trade-off, não muro.
+
+### 2. Idioma (CONTINUA ELIMINATÓRIO)
 `cv.md` declara inglês básico, em curso.
 
-- Anúncio exigindo inglês avançado ou fluente → descartar
+- Inglês avançado ou fluente exigido → descartar
 - **Anúncio escrito inteiramente em inglês** → tratar como exigência de inglês de trabalho, mesmo sem dizer. Triagem por vídeo em inglês é gate imediato
-- Inglês como "diferencial" ou "nice to have" → passa, registrar
+- Inglês como diferencial ou nice to have → passa, registrar
 
-### 3. Nível (ELIMINATÓRIO)
-Júnior, estágio, trainee → descartar.
-Head ou gerente **com gestão formal de força de vendas** → descartar.
-Coordenador ou especialista **sem gestão de pessoas** → passa, e é bom sinal.
+### 3. Nível (REVISTO 16/09)
+
+**Estágio e trainee** → descartar, sempre.
+
+**Júnior** → **aceito**, desde que:
+- a vaga seja **100% remota**, **e**
+- a empresa seja do **setor** de fintech, pagamentos, adquirência ou BaaS
+
+Júnior presencial, ou júnior fora do setor → descartar.
+
+**Head ou gerente com gestão formal de força de vendas** → descartar.
+**Coordenador ou especialista sem gestão de pessoas** → passa, e é bom sinal.
 
 ### 4. Função (ELIMINATÓRIO de fato)
 Vendas de campo, prospecção, gestão de carteira comercial → descartar.
@@ -163,6 +178,10 @@ Vendas de campo, prospecção, gestão de carteira comercial → descartar.
 
 ### 5. Penalizações (reduzem, não eliminam)
 SQL avançado como requisito central · Looker/Metabase/Tableau como core · capacity planning e forecast · plataformas de CS · agregador de vagas · vaga saturada (mais de 100 candidatos ou mais de 30 dias no ar) · contrato temporário
+
+**Salário abaixo de R$ 5.000** → registrar como sinal, **não descartar**. O candidato aceita piso menor em empresa de bom perfil, dada a urgência de saída.
+
+**Setor fora de fintech** → penalização leve **se a vaga for remota**; descarte se for presencial fora de Goiânia sem compensação.
 
 ### 6. Dedup
 Cruzar com `data/applications.md` e `data/scan-history.tsv`.

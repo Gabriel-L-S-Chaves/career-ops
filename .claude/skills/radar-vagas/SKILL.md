@@ -84,11 +84,28 @@ Grupo Boticário (franquias + pagamentos) · iFood / iFood Pago · Mercos · UpF
 
 ---
 
+## ⚠️ O que a busca web NÃO resolve — leia antes de montar query
+
+**`WebSearch` encontra o que o Google indexou, não o que está aberto.** Em boards de ATS o índice atrasa semanas.
+
+Evidência acumulada: 02/08, 4 de 4 encerradas · 17/08, triagem sobre 36 URLs de 15 a 48 dias, várias mortas · 16/09, a Mercos fechou em 5 dias e o iFood não aceitava candidatura · 16/09, **as 3 melhores da varredura estavam encerradas no mesmo dia**, incluindo uma com jobId recente — o que derruba a heurística de estimar idade pelo ID.
+
+**Consequência prática: nunca entregar link profundo de vaga como resultado principal.** Ele apodrece entre a varredura e a leitura.
+
+O que entregar no lugar, quando não há como verificar:
+- **Raiz de board** (`https://{empresa}.gupy.io/`) — lista sempre atual
+- **Busca salva no portal** (`https://portal.gupy.io/job-search`, filtros aplicados na interface) — consulta ao vivo
+- Ver `data/radar-links-vivos.md`, que é a lista mantida disso
+
+**O único canal vivo é a API do ATS** — `scan.mjs` para Greenhouse, Ashby e Lever. Em sessão cloud os hosts de API também caem no proxy (`boards-api.greenhouse.io`, `portal.api.gupy.io` e `{empresa}.gupy.io/api` testados em 16/09: todos bloqueados). **Então a varredura viva roda na máquina do usuário, não aqui.** O papel desta skill em sessão bloqueada é mapear e priorizar, não afirmar disponibilidade.
+
+---
+
 ## Consultas de busca
 
-**Aprendido na varredura de 16/09: `site:` funciona, busca ampla não.**
+**`site:` funciona, busca ampla não.**
 
-As queries com `site:` devolveram vagas específicas com ID e título. As genéricas ("vaga analista operações fintech remoto") devolveram apenas páginas de listagem do Indeed e do Glassdoor, sem anúncio nenhum. **Comece sempre por `site:` e só use busca ampla para descobrir empresa nova.**
+As queries com `site:` devolveram vagas específicas com ID e título. As genéricas ("vaga analista operações fintech remoto") devolveram apenas páginas de listagem do Indeed e do Glassdoor, sem anúncio nenhum. **Comece sempre por `site:` e só use busca ampla para descobrir empresa nova** — e trate o retorno como mapa de empresa, não como vaga disponível.
 
 ### 1ª linha — por board de empresa (use isto primeiro)
 

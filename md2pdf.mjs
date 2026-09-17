@@ -8,9 +8,14 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
-const [, , input, output] = process.argv;
+// --justify is opt-in: justified text suits prose (a cover letter, a report
+// body) but reads worse in the dense tables and lists the dossiers are made of,
+// so the default stays ragged-right and only the caller who wants it asks.
+const args = process.argv.slice(2);
+const justify = args.includes('--justify');
+const [input, output] = args.filter((a) => !a.startsWith('--'));
 if (!input || !output) {
-  console.error('Uso: node md2pdf.mjs <entrada.md> <saida.pdf>');
+  console.error('Uso: node md2pdf.mjs <entrada.md> <saida.pdf> [--justify]');
   process.exit(1);
 }
 
@@ -98,9 +103,15 @@ a{color:#5b2eb8;text-decoration:none;word-break:break-all}
 em{color:#463a5e}
 `;
 
+// Justify paragraphs and list items only — never headings, table cells or code.
+const JUSTIFY_CSS = `
+p,li{text-align:justify;text-justify:inter-word;hyphens:auto;-webkit-hyphens:auto}
+blockquote p{text-align:justify}
+`;
+
 const md = readFileSync(input, 'utf-8');
 const title = (md.match(/^#\s+(.+)$/m) || [, 'Dossiê'])[1];
-const html = `<meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</style>\n${render(md)}`;
+const html = `<meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}${justify ? JUSTIFY_CSS : ''}</style>\n<html lang="pt-BR">\n${render(md)}`;
 
 const tmp = output.replace(/\.pdf$/, '.__tmp.html');
 writeFileSync(tmp, html, 'utf-8');

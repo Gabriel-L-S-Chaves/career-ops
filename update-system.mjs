@@ -175,6 +175,7 @@ const SYSTEM_PATHS = [
   'scan-ats-full.mjs',
   'scan-interamt.mjs',
   'probe-fontes.mjs',
+  'resolve-boards.mjs',
   'company-funded.mjs',
   'match-star.mjs',
   'jd-skill-gap.mjs',

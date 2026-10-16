@@ -115,11 +115,26 @@ site:pagseguro.gupy.io analista conciliação pagamentos
 site:job-boards.greenhouse.io/stone business analyst remoto
 site:grupoboticario.gupy.io analista operações financeiras remoto
 site:{empresa}.gupy.io {cargo}
+site:{empresa}.inhire.app {cargo}
 ```
 
 Dá para agrupar boards com `OR` numa query só:
 ```
 site:cielo.gupy.io OR site:picpay.gupy.io OR site:celcoin.gupy.io analista operações
+```
+
+#### InHire — acrescentado em 16/10/2026
+
+ATS brasileiro concentrado em fintech e startups de tecnologia, e um ponto cego do scanner até aqui.
+
+**Existe provider nativo:** `providers/inhire.mjs`. Uma empresa com slug confirmado entra no `portals.yml` como `careers_url: https://{slug}.inhire.app` e o `scan.mjs` passa a lê-la sozinho — sem busca web, sem navegador, custo zero de token. O `resolve-boards.mjs` já sonda InHire, então o slug sai de lá.
+
+**A limitação que importa:** a API pública (`api.inhire.app/job-posts/public/pages`, header `X-Tenant`) é **por empresa**. Não existe busca global como no portal da Gupy. Então o InHire só enxerga quem já estiver na lista — descobrir empresa nova continua sendo trabalho de busca web:
+
+```
+site:inhire.app analista operações pagamentos
+site:inhire.app analista fintech remoto
+site:inhire.app backoffice OR conciliação OR antifraude
 ```
 
 ### 2ª linha — por cargo e segmento (só para descobrir empresa nova)

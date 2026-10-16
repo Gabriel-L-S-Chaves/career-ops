@@ -173,6 +173,7 @@ const SYSTEM_PATHS = [
   'portal-health-lock.mjs',
   'classify-tier.mjs',
   'scan-ats-full.mjs',
+  'scan-gupy.mjs',
   'scan-interamt.mjs',
   'probe-fontes.mjs',
   'resolve-boards.mjs',

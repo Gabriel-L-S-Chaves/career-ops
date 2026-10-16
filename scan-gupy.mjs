@@ -40,6 +40,7 @@
  */
 
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import yaml from 'js-yaml';
 
@@ -482,7 +483,12 @@ async function main() {
 }
 
 // Permite importar as funções puras em teste sem disparar a varredura.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL em vez de concatenar "file://": no Windows process.argv[1] é
+// C:\Users\...\scan-gupy.mjs e import.meta.url é file:///C:/Users/.../scan-gupy.mjs,
+// então a comparação ingênua nunca casa e o script sai em silêncio, sem rodar nada.
+// O argv[1] pode ser indefinido (node -e, REPL), daí o guarda antes de converter.
+const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
+if (entry !== null && import.meta.url === entry) {
   main().catch((err) => {
     console.error('❌', err);
     process.exit(1);

@@ -50,6 +50,7 @@ import {
   buildPostingAgeFilter,
   loadSeenUrls,
   loadSeenCompanyRoles,
+  buildCompanyCanonicalizer,
   companyRoleDedupKey,
   normalizeUrlForDedup,
   appendToPipeline,
@@ -355,7 +356,11 @@ async function main() {
   const passesAge = buildPostingAgeFilter(config.max_posting_age_days);
   const blacklist = loadBlacklist();
   const seenUrls = loadSeenUrls(config);
-  const seenRoles = loadSeenCompanyRoles({}, config);
+  // Mesma chamada do scan.mjs: a assinatura é (appsPath, canonicalize, opções).
+  // O canonicalizador tem de ser o MESMO usado ao gerar a chave de cada vaga
+  // nova, senão o dedup de empresa+cargo compara chaves de alfabetos diferentes.
+  const canonicalizeCompany = buildCompanyCanonicalizer(config.company_aliases);
+  const seenRoles = loadSeenCompanyRoles(undefined, canonicalizeCompany, { policy: config });
 
   const today = new Date().toISOString().slice(0, 10);
   const selected = targets.slice(0, LIMIT === Infinity ? undefined : LIMIT);
@@ -417,7 +422,7 @@ async function main() {
         if (blacklist.some((b) => companyLower.includes(b))) { counters.filtered_blacklist++; continue; }
 
         const normUrl = normalizeUrlForDedup(job.url);
-        const roleKey = companyRoleDedupKey(job.company, job.title);
+        const roleKey = companyRoleDedupKey(job.company, job.title, canonicalizeCompany);
         if (seenUrls.has(normUrl) || seenRoles.has(roleKey)) { counters.dupes++; continue; }
 
         seenUrls.add(normUrl);

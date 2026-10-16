@@ -483,9 +483,10 @@ async function main() {
 }
 
 // Permite importar as funções puras em teste sem disparar a varredura.
-// pathToFileURL em vez de concatenar "file://": no Windows process.argv[1] é
-// C:\Users\...\scan-gupy.mjs e import.meta.url é file:///C:/Users/.../scan-gupy.mjs,
-// então a comparação ingênua nunca casa e o script sai em silêncio, sem rodar nada.
+// pathToFileURL em vez de concatenar "file://": no Windows o argv[1] vem como
+// caminho nativo com barras invertidas e letra de unidade, enquanto
+// import.meta.url é uma URL file:// com barras normais. A comparação ingênua
+// nunca casa ali, e o script sairia em silêncio, sem saída e sem erro.
 // O argv[1] pode ser indefinido (node -e, REPL), daí o guarda antes de converter.
 const entry = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
 if (entry !== null && import.meta.url === entry) {

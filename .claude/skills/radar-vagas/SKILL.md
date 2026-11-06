@@ -103,9 +103,31 @@ O que entregar no lugar, quando não há como verificar:
 
 ## Consultas de busca
 
-**`site:` funciona, busca ampla não.**
+**⚠️ REVISTO EM 06/11/2026 — `site:` deixou de ser honrado.**
 
-As queries com `site:` devolveram vagas específicas com ID e título. As genéricas ("vaga analista operações fintech remoto") devolveram apenas páginas de listagem do Indeed e do Glassdoor, sem anúncio nenhum. **Comece sempre por `site:` e só use busca ampla para descobrir empresa nova** — e trate o retorno como mapa de empresa, não como vaga disponível.
+Em 06/11 rodei cinco queries com `site:` sobre `gupy.io` e `inhire.app`. **Quatro
+foram ignoradas pelo motor**: nenhum resultado dos domínios pedidos, só
+agregadores (BNE, Vagas.com, Indeed). A única que retornou board foi a do
+PicPay — e por acidente, porque o slug real é `picpaypage.gupy.io`, que nem
+constava da query.
+
+Conclusão: **não planeje a varredura em cima de `site:`.** Ainda vale tentar uma
+ou duas, porque às vezes pega, mas conte com a falha. O retorno útil de 06/11 veio
+todo de resultados incidentais de busca ampla.
+
+Ordem revista:
+1. **Busca ampla por cargo + setor**, lendo os resultados incidentais — foi o que
+   produziu PicPay Conciliação, Shopee Registro de Recebíveis e Experian
+2. `site:` como tentativa barata, nunca como plano
+3. **Slug errado é causa comum de zero resultado.** `picpay.gupy.io` não existe;
+   o correto é `picpaypage.gupy.io`. Confirmar slug com `resolve-boards.mjs`
+   antes de culpar a ausência de vaga
+4. A varredura viva continua sendo `scan.mjs` na máquina do usuário
+
+Histórico: as queries genéricas de 16/09 ("vaga analista operações fintech
+remoto") devolveram só páginas de listagem. A diferença em 06/11 é que a busca
+ampla **com cargo específico** (conciliação, registro de recebíveis, meios de
+pagamento) devolveu anúncios reais. Cargo específico é o que separa as duas.
 
 ### 1ª linha — por board de empresa (use isto primeiro)
 

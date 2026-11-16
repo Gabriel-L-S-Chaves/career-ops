@@ -29,10 +29,35 @@ Em sessões cloud, `linkedin.com`, `gupy.io`, `greenhouse.io`, `inhire.app` e af
 **Nunca declarar ausência de acesso sem ter testado `WebSearch`.**
 
 Ordem de tentativa:
-1. `WebSearch` com `site:` filtrando o board da empresa
-2. `WebSearch` genérica pelo nome da empresa mais o cargo
+1. **`WebSearch` ampla por cargo + setor**, lendo os resultados incidentais
+2. `WebSearch` com `site:` como tentativa barata, **nunca como plano** — em 06/11/2026 quatro de cinco queries com `site:` foram ignoradas pelo motor
 3. `node check-liveness.mjs <url>` — funciona em Gupy, Greenhouse, Ashby e Lever quando a rede permite
 4. `WebFetch` — último recurso, costuma falhar em cloud
+
+**Slug errado é causa comum de zero resultado.** `picpay.gupy.io` não existe; o correto é
+`picpaypage.gupy.io`.
+
+---
+
+## ⚠️ `resolve-boards.mjs`: SmartRecruiters e Workable dão falso positivo
+
+**Descoberto em 16/11/2026 e provado no mesmo dia.** As sondas de SmartRecruiters e Workable
+casam com praticamente qualquer slug, devolvendo board vazio.
+
+A prova: numa varredura de 70 nomes, o terminador de um here-string do PowerShell escapou para
+dentro de `data/empresas-alvo.txt` e foi tratado como empresa. O resolvedor devolveu
+`careers.smartrecruiters.com/setcontentencodingutf8dataempresasalvotxt` para uma empresa que
+não existe. Na mesma execução, a QuintoAndar — cujo board real é Greenhouse, com 102 vagas —
+também "casou" com SmartRecruiters **e** Workable, ambos vazios. E houve linhas com
+`smartrecruiters` repetido três vezes para a mesma empresa.
+
+**Regra: descartar toda linha cujo único resultado seja `smartrecruiters` ou `workable`.**
+Só tratar como board real o que vier de Greenhouse, Lever, Ashby, Gupy, InHire, Recruitee ou
+Breezy — ou um SmartRecruiters/Workable **com contagem de vagas maior que zero**.
+
+Corolário: quando a frente remota (Hotmart, Contabilizei, Mercos, Olist, Méliuz, Omie, Vindi,
+Zenvia, Conta Simples) aparece só como `smartrecruiters`, isso significa **slug não encontrado**,
+não "sem board". Essas empresas usam Gupy, e o slug precisa ser caçado à mão.
 
 ---
 

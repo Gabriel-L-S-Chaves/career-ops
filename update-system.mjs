@@ -179,6 +179,7 @@ const SYSTEM_PATHS = [
   'resolve-boards.mjs',
   'fix-portals-boards.mjs',
   'diag-gupy-titles.mjs',
+  'fix-title-filter.mjs',
   'company-funded.mjs',
   'match-star.mjs',
   'jd-skill-gap.mjs',

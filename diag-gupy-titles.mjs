@@ -30,6 +30,7 @@ import { buildLocationFilter } from './scan.mjs';
 const args = process.argv.slice(2);
 const SLUG = args.find((a) => !a.startsWith('--')) ?? 'asaas';
 const SHOW_ALL = args.includes('--all');
+const DUMP = args.includes('--dump');
 const URL = `https://${SLUG}.gupy.io`;
 
 // Campos onde o titulo da vaga pode estar, em ordem de probabilidade.
@@ -154,9 +155,10 @@ const all = [
   ...fromNext,
 ];
 const byTitle = new Map();
+const recByTitle = new Map();
 for (const rec of all) {
   const t = pickTitle(rec);
-  if (t && !byTitle.has(t)) byTitle.set(t, pickLocation(rec));
+  if (t && !byTitle.has(t)) { byTitle.set(t, pickLocation(rec)); recByTitle.set(t, rec); }
 }
 const titles = [...byTitle.keys()];
 
@@ -201,6 +203,22 @@ for (const p of passed.slice(0, cap)) {
 console.log(`\n❌ CAEM no titulo: ${failed.length}`);
 for (const f of failed.slice(0, cap)) console.log(`   ${f.t}   [${f.why}]`);
 if (!SHOW_ALL && failed.length > cap) console.log(`   ... e mais ${failed.length - cap}. Use --all para ver tudo.`);
+
+if (DUMP && passed.length > 0) {
+  const sample = recByTitle.get(passed[0].t);
+  console.log(`\n── Registro completo de "${passed[0].t}" ──`);
+  console.log('  chaves:', Object.keys(sample).join(', '));
+  console.log('\n  valores de texto curto (candidatos a localizacao):');
+  for (const [k, v] of Object.entries(sample)) {
+    if (typeof v === 'string' && v.length <= 60 && v.trim()) console.log(`    ${k} = ${JSON.stringify(v)}`);
+    else if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const inner = Object.entries(v)
+        .filter(([, iv]) => typeof iv === 'string' && iv.length <= 60 && iv.trim())
+        .map(([ik, iv]) => `${ik}=${JSON.stringify(iv)}`);
+      if (inner.length) console.log(`    ${k}.{ ${inner.join(', ')} }`);
+    }
+  }
+}
 
 console.log(`\n── Localizacao, so entre os aprovados no titulo ──`);
 console.log(`  ✅ passam tambem na localizacao: ${locOk.length}`);

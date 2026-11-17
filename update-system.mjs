@@ -178,6 +178,7 @@ const SYSTEM_PATHS = [
   'probe-fontes.mjs',
   'resolve-boards.mjs',
   'fix-portals-boards.mjs',
+  'diag-gupy-titles.mjs',
   'company-funded.mjs',
   'match-star.mjs',
   'jd-skill-gap.mjs',

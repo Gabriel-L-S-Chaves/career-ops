@@ -35,24 +35,30 @@ const URL = `https://${SLUG}.gupy.io`;
 
 // Campos onde o titulo da vaga pode estar, em ordem de probabilidade.
 const TITLE_KEYS = ['name', 'jobName', 'title', 'position', 'roleName', 'vacancyName'];
-// Campos onde a localizacao pode estar, na mesma ordem de probabilidade.
-const LOC_KEYS = ['city', 'location', 'workplaceCity', 'addressCity', 'jobLocation', 'place'];
-const STATE_KEYS = ['state', 'uf', 'workplaceState', 'addressState', 'region'];
+// Espelha a extracao do scan-gupy.mjs, para o diagnostico medir o que a
+// varredura real ve — e nao o que eu imagino que ela veja. A unica diferenca
+// deliberada e o caminho ANINHADO workplace.workplaceType, que o scan-gupy
+// nao le hoje (ele procura raw.workplaceType no nivel de cima, que na PagBank
+// nao existe). `type` NAO entra: na Gupy ele vale "vacancy_type_effective",
+// um enum interno, e trata-lo como local foi erro meu na medicao de 17/11.
+const LOC_KEYS = ['location', 'city', 'addressCity', 'workplaceCity'];
 
 function pickLocation(rec) {
   if (!rec || typeof rec !== 'object') return '';
-  const parts = [];
+  let loc = '';
   for (const k of LOC_KEYS) {
     const v = rec[k];
-    if (typeof v === 'string' && v.trim()) { parts.push(v.trim()); break; }
+    if (typeof v === 'string' && v.trim()) { loc = v.trim(); break; }
   }
-  for (const k of STATE_KEYS) {
-    const v = rec[k];
-    if (typeof v === 'string' && v.trim()) { parts.push(v.trim()); break; }
+  if (!loc && rec.address && typeof rec.address === 'object') {
+    loc = [rec.address.city, rec.address.state, rec.address.country]
+      .filter((p) => typeof p === 'string' && p.trim())
+      .join(', ');
   }
-  const type = rec.workplaceType ?? rec.type ?? rec.remote;
-  if (typeof type === 'string' && type.trim()) parts.push(type.trim());
-  return parts.join(', ');
+  const flag = rec.isRemoteWork ?? rec.remote ?? rec.workplaceType ?? rec.workplace?.workplaceType;
+  const isRemote = flag === true || (typeof flag === 'string' && /remote|remoto/i.test(flag));
+  if (isRemote) loc = loc ? `${loc} (Remoto)` : 'Remoto';
+  return loc;
 }
 
 function pickTitle(rec) {

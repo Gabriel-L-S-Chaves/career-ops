@@ -25,6 +25,7 @@
 import { chromium } from 'playwright';
 import { readFileSync, existsSync } from 'node:fs';
 import yaml from 'js-yaml';
+import { buildLocationFilter } from './scan.mjs';
 
 const args = process.argv.slice(2);
 const SLUG = args.find((a) => !a.startsWith('--')) ?? 'asaas';
@@ -33,6 +34,25 @@ const URL = `https://${SLUG}.gupy.io`;
 
 // Campos onde o titulo da vaga pode estar, em ordem de probabilidade.
 const TITLE_KEYS = ['name', 'jobName', 'title', 'position', 'roleName', 'vacancyName'];
+// Campos onde a localizacao pode estar, na mesma ordem de probabilidade.
+const LOC_KEYS = ['city', 'location', 'workplaceCity', 'addressCity', 'jobLocation', 'place'];
+const STATE_KEYS = ['state', 'uf', 'workplaceState', 'addressState', 'region'];
+
+function pickLocation(rec) {
+  if (!rec || typeof rec !== 'object') return '';
+  const parts = [];
+  for (const k of LOC_KEYS) {
+    const v = rec[k];
+    if (typeof v === 'string' && v.trim()) { parts.push(v.trim()); break; }
+  }
+  for (const k of STATE_KEYS) {
+    const v = rec[k];
+    if (typeof v === 'string' && v.trim()) { parts.push(v.trim()); break; }
+  }
+  const type = rec.workplaceType ?? rec.type ?? rec.remote;
+  if (typeof type === 'string' && type.trim()) parts.push(type.trim());
+  return parts.join(', ');
+}
 
 function pickTitle(rec) {
   if (!rec || typeof rec !== 'object') return null;
@@ -127,8 +147,18 @@ if (!nextRaw) {
   }
 }
 
-const all = [...fromNetwork.flatMap((r) => r.recs), ...fromNext];
-const titles = [...new Set(all.map(pickTitle).filter(Boolean))];
+// O proxy de feature flags da Gupy (unleash) responde JSON com campo `name` e
+// polui a amostra com centenas de chaves de configuracao. Descartado aqui.
+const all = [
+  ...fromNetwork.filter((r) => !/unleash/i.test(r.url)).flatMap((r) => r.recs),
+  ...fromNext,
+];
+const byTitle = new Map();
+for (const rec of all) {
+  const t = pickTitle(rec);
+  if (t && !byTitle.has(t)) byTitle.set(t, pickLocation(rec));
+}
+const titles = [...byTitle.keys()];
 
 console.log(`\n── Titulos distintos: ${titles.length} ──`);
 if (titles.length === 0) {
@@ -144,27 +174,50 @@ if (titles.length === 0) {
 const tf = loadFilter();
 if (!tf) console.log('  (portals.yml sem title_filter — rode na raiz do projeto)');
 
+const cfg = existsSync('portals.yml') ? yaml.load(readFileSync('portals.yml', 'utf8')) || {} : {};
+const passesLocation = buildLocationFilter(cfg.location_filter);
+
 const passed = [];
 const failed = [];
 for (const t of titles) {
   const v = verdict(t, tf);
-  (v.pass ? passed : failed).push({ t, why: v.why });
+  (v.pass ? passed : failed).push({ t, why: v.why, loc: byTitle.get(t) ?? '' });
 }
 
 const cap = SHOW_ALL ? titles.length : 40;
 
-console.log(`\n✅ PASSAM no filtro: ${passed.length}`);
-for (const p of passed.slice(0, cap)) console.log(`   ${p.t}   [${p.why}]`);
+// Dos que passam no titulo, quais sobrevivem tambem a localizacao.
+const locOk = [];
+const locNo = [];
+for (const p of passed) (passesLocation(p.loc, '', p.t) ? locOk : locNo).push(p);
 
-console.log(`\n❌ CAEM no filtro: ${failed.length}`);
+console.log(`\n✅ PASSAM no titulo: ${passed.length}`);
+for (const p of passed.slice(0, cap)) {
+  const mark = passesLocation(p.loc, '', p.t) ? '✅' : '📍';
+  console.log(`   ${mark} ${p.t}`);
+  console.log(`      local: ${p.loc || '(vazio)'}   [${p.why}]`);
+}
+
+console.log(`\n❌ CAEM no titulo: ${failed.length}`);
 for (const f of failed.slice(0, cap)) console.log(`   ${f.t}   [${f.why}]`);
 if (!SHOW_ALL && failed.length > cap) console.log(`   ... e mais ${failed.length - cap}. Use --all para ver tudo.`);
 
+console.log(`\n── Localizacao, so entre os aprovados no titulo ──`);
+console.log(`  ✅ passam tambem na localizacao: ${locOk.length}`);
+console.log(`  📍 barrados pela localizacao:    ${locNo.length}`);
+if (locNo.length > 0) {
+  const porLocal = new Map();
+  for (const p of locNo) porLocal.set(p.loc || '(vazio)', (porLocal.get(p.loc || '(vazio)') ?? 0) + 1);
+  console.log('\n  Locais que estao barrando:');
+  for (const [l, n] of [...porLocal.entries()].sort((a, b) => b[1] - a[1])) {
+    console.log(`    ${String(n).padStart(3)}x  ${l}`);
+  }
+}
+
 const pct = titles.length ? ((passed.length / titles.length) * 100).toFixed(1) : '0';
 console.log(`\n── Veredito ──`);
-console.log(`  ${passed.length}/${titles.length} (${pct}%) passam.`);
-console.log(
-  passed.length === 0
-    ? '  Zero aprovados com titulos legiveis: ou a empresa nao tem vaga do seu perfil,\n  ou o filtro precisa de termos novos. Olhe a lista de reprovados acima.'
-    : '  A leitura funciona e o filtro aprova. Se o scan-gupy.mjs devolveu zero,\n  a perda esta depois do titulo: filtro de localizacao ou dedup.'
-);
+console.log(`  Titulo: ${passed.length}/${titles.length} (${pct}%) passam.`);
+console.log(`  Localizacao: ${locOk.length} sobrevivem aos dois filtros.`);
+if (passed.length > 0 && locOk.length === 0) {
+  console.log('  Todas morrem na localizacao. A lista acima mostra quais locais acrescentar\n  ao allow do portals.yml, ou quais estao batendo no block por substring.');
+}

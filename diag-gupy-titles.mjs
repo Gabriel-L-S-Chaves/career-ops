@@ -32,6 +32,7 @@ const SLUG = args.find((a) => !a.startsWith('--')) ?? 'asaas';
 const SHOW_ALL = args.includes('--all');
 const DUMP = args.includes('--dump');
 const URL = `https://${SLUG}.gupy.io`;
+const URL_BASE = URL;
 
 // Campos onde o titulo da vaga pode estar, em ordem de probabilidade.
 const TITLE_KEYS = ['name', 'jobName', 'title', 'position', 'roleName', 'vacancyName'];
@@ -199,11 +200,21 @@ const locOk = [];
 const locNo = [];
 for (const p of passed) (passesLocation(p.loc, '', p.t) ? locOk : locNo).push(p);
 
+const jobUrl = (rec) => {
+  if (!rec) return '';
+  const explicit = rec.jobUrl ?? rec.url ?? rec.applyUrl;
+  if (typeof explicit === 'string' && /^https?:\/\//.test(explicit)) return explicit;
+  const id = rec.id ?? rec.jobId ?? rec.careerPageJobId ?? rec.code;
+  return id === undefined || id === null ? '' : `${URL_BASE}/job/${id}`;
+};
+
 console.log(`\n✅ PASSAM no titulo: ${passed.length}`);
 for (const p of passed.slice(0, cap)) {
   const mark = passesLocation(p.loc, '', p.t) ? '✅' : '📍';
+  const link = jobUrl(recByTitle.get(p.t));
   console.log(`   ${mark} ${p.t}`);
   console.log(`      local: ${p.loc || '(vazio)'}   [${p.why}]`);
+  if (link) console.log(`      ${link}`);
 }
 
 console.log(`\n❌ CAEM no titulo: ${failed.length}`);

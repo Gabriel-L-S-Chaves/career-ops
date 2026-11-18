@@ -107,7 +107,12 @@ function headerField(text, label) {
 function fromTitle(text) {
   const m = text.match(/^#\s+(.+)$/m);
   if (!m) return { company: '', role: '' };
-  const parts = m[1].split(/\s+[—–]\s+|\s+-\s+/);
+  // Os relatorios 001-016 desta base usam "# Evaluation: Empresa — Cargo"; os
+  // seguintes usam "# Empresa — Cargo". Sem cortar o rotulo, a empresa entrava
+  // no tracker como "Evaluation: Appmax" e o dedup por empresa do
+  // merge-tracker deixava de casar com qualquer avaliacao futura da mesma.
+  const titleText = m[1].replace(/^\s*(?:evaluation|avalia[cç][aã]o|report|relat[oó]rio)\s*:\s*/i, '');
+  const parts = titleText.split(/\s+[—–]\s+|\s+-\s+/);
   return {
     company: (parts[0] ?? '').trim(),
     role: parts.slice(1).join(' - ').trim(),

@@ -50,6 +50,7 @@ import {
   buildPostingAgeFilter,
   loadSeenUrls,
   loadSeenCompanyRoles,
+  scanHistoryPolicy,
   buildCompanyCanonicalizer,
   companyRoleDedupKey,
   normalizeUrlForDedup,
@@ -392,12 +393,24 @@ async function main() {
   const passesLocation = buildLocationFilter(config.location_filter);
   const passesAge = buildPostingAgeFilter(config.max_posting_age_days);
   const blacklist = loadBlacklist();
-  const seenUrls = loadSeenUrls(config);
-  // Mesma chamada do scan.mjs: a assinatura é (appsPath, canonicalize, opções).
+  // 18/11/2026: duas correções na mesma chamada.
+  //
+  //   1. `loadSeenUrls` devolve { seen, recheckEligible }, NÃO um Set. Tratar o
+  //      objeto como Set rebentava com "seenUrls.has is not a function" assim
+  //      que a primeira vaga sobrevivia aos filtros. O bug ficou latente
+  //      enquanto o filtro de localização derrubava tudo antes desta linha.
+  //   2. Estas duas funções esperam a POLÍTICA derivada, não o config cru.
+  //      Passando `config`, a política de recheck do scan-history saía vazia e
+  //      o dedup divergia silenciosamente do scan.mjs.
+  //
+  // O scan.mjs faz exatamente isto nas linhas 2008-2013.
+  const historyPolicy = scanHistoryPolicy(config);
   // O canonicalizador tem de ser o MESMO usado ao gerar a chave de cada vaga
   // nova, senão o dedup de empresa+cargo compara chaves de alfabetos diferentes.
   const canonicalizeCompany = buildCompanyCanonicalizer(config.company_aliases);
-  const seenRoles = loadSeenCompanyRoles(undefined, canonicalizeCompany, { policy: config });
+  const seenUrls = loadSeenUrls(historyPolicy).seen;
+  // Mesma chamada do scan.mjs: a assinatura é (appsPath, canonicalize, opções).
+  const seenRoles = loadSeenCompanyRoles(undefined, canonicalizeCompany, { policy: historyPolicy });
 
   const today = new Date().toISOString().slice(0, 10);
   const selected = targets.slice(0, LIMIT === Infinity ? undefined : LIMIT);

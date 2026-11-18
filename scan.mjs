@@ -851,7 +851,7 @@ export function shouldDedupScanHistoryRow({ firstSeen, status = 'added' }, { rec
   return ageDays < recheckAfterDays;
 }
 
-function scanHistoryPolicy(config = {}) {
+export function scanHistoryPolicy(config = {}) {
   const raw = config.scan_history?.recheck_after_days;
   const parsed = Number.parseInt(raw, 10);
   return {

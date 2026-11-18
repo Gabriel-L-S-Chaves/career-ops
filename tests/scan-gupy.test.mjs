@@ -82,6 +82,31 @@ try {
   if (explicit?.url === 'https://pagseguro.gupy.io/job/ABC')
     pass('an explicit jobUrl from the DOM still wins over the built token');
   else fail(`explicit jobUrl overridden: ${explicit?.url}`);
+
+  // ── 3. dedup contract with scan.mjs ──────────────────────────────────
+  //
+  // scan-gupy crashed with "seenUrls.has is not a function" the moment a job
+  // first survived the filters: it treated loadSeenUrls()'s return value as a
+  // Set. These pin the shape both scanners depend on, so the next change to
+  // loadSeenUrls fails here instead of at runtime in the middle of a sweep.
+  const scan = await import(pathToFileURL(join(ROOT, 'scan.mjs')).href);
+
+  if (typeof scan.scanHistoryPolicy === 'function')
+    pass('scan.mjs exports scanHistoryPolicy (scan-gupy needs the derived policy)');
+  else fail('scanHistoryPolicy is not exported from scan.mjs');
+
+  const seenState = scan.loadSeenUrls(scan.scanHistoryPolicy({}));
+
+  if (seenState?.seen instanceof Set) pass('loadSeenUrls returns { seen: Set, ... }');
+  else fail(`loadSeenUrls returned ${JSON.stringify(Object.keys(seenState ?? {}))}`);
+
+  if (typeof seenState.has !== 'function')
+    pass('loadSeenUrls return value is NOT itself a Set — callers must unwrap .seen');
+  else fail('loadSeenUrls now returns a Set directly; scan-gupy unwraps .seen and would break');
+
+  if (typeof seenState.recheckEligible === 'number')
+    pass('loadSeenUrls reports recheckEligible as a number');
+  else fail(`recheckEligible = ${JSON.stringify(seenState.recheckEligible)}`);
 } catch (err) {
   fail(`scan-gupy tests threw: ${err.message}`);
 }

@@ -60,7 +60,25 @@ const ADD_POSITIVE = [
 ];
 
 // Ruido de volume que nao e vaga comercial: campo, atendimento, aprendiz.
-const ADD_NEGATIVE = ['Técnico de Campo', 'Assistente de Atendimento', 'Jovem Aprendiz'];
+//
+// 18/11/2026: somadas as vagas afirmativas PcD. O usuario declarou em 16/11 que
+// nao e PcD (gravado em modes/_profile.md), e vaga afirmativa exige laudo — nao
+// ha caminho de candidatura. Duas delas passaram na varredura Gupy do Boticario:
+// "(Vaga Afirmativa para PcD)" e "(Vaga afirmativa para pessoas com deficiencia)".
+//
+// Sobre o risco de substring, que ja mordeu este filtro uma vez com "BI":
+// "pcd" nao ocorre dentro de palavra em portugues, entao e seguro como termo
+// solto. O filtro so olha o TITULO, nunca o corpo do anuncio — uma vaga comum
+// que mencione acessibilidade na descricao continua passando. E o corte vale so
+// para PcD: vagas afirmativas de outros recortes seguem visiveis, porque o
+// usuario nao pediu para barra-las.
+const ADD_NEGATIVE = [
+  'Técnico de Campo',
+  'Assistente de Atendimento',
+  'Jovem Aprendiz',
+  'PcD',
+  'pessoas com deficiência',
+];
 
 // So com --bloquear-vendas. O usuario pediu em 17/11/2026 para MANTER vagas
 // comerciais visiveis, entao isto fica desligado por padrao.

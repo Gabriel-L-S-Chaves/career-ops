@@ -242,7 +242,12 @@ export function locationHintFromUrl(url) {
 // "remote" must be followed by end-of-string, a non-letter (")", ",", "-"),
 // or " in …" as in "Remote in MO" — never by another word, which is what makes
 // "remote sensing" / "remote monitoring" compounds.
-export const REMOTE_TITLE_RE = /(?<![a-z])remote(?=$|\s*[^a-z\s]|\s+in\b)/;
+// 18/11/2026: `remoto`/`remota` entraram aqui. O padrao so reconhecia a palavra
+// inglesa, e num sistema usado sobre boards brasileiros isso significa que
+// "Analista de Operacoes (Remoto)" nao contava como sinal de trabalho remoto —
+// justamente o rotulo que a Gupy e o LinkedIn usam em portugues. A forma
+// feminina entra porque o titulo as vezes concorda com a vaga ("Vaga Remota").
+export const REMOTE_TITLE_RE = /(?<![a-z])remot[eoa](?=$|\s*[^a-z\s]|\s+in\b)/;
 
 // …and a negation before the word has to lose, which the marker regex alone
 // cannot see: in "Non-Remote" / "Not Remote" the delimiter clears the lookbehind
@@ -262,7 +267,7 @@ export const REMOTE_TITLE_RE = /(?<![a-z])remote(?=$|\s*[^a-z\s]|\s+in\b)/;
 // A negation anywhere in the title disqualifies it. Over-rejecting here is the
 // safe direction: this tier only ever *rescues* a posting, so a false negative
 // restores the previous behavior while a false positive admits an on-site role.
-export const REMOTE_NEGATED_RE = /\b(?:non|not|no)[^a-z]*remote/;
+export const REMOTE_NEGATED_RE = /\b(?:non|not|no)[^a-z]*remote|\bn[ãa]o[^a-z]*remot[oa]/;
 
 /** @param {unknown} title @returns {boolean} whether the title marks the role remote. */
 export function titleSignalsRemote(title) {
@@ -274,7 +279,34 @@ export function titleSignalsRemote(title) {
 
 // `url` and `title` are optional. Callers that omit them get the original
 // location-only semantics, which is what the existing unit tests exercise.
-export function buildLocationFilter(locationFilter) {
+/**
+ * Filtro de localização, com um modo estrito opcional.
+ *
+ * `remoteOnly` ignora o allow/block do portals.yml e exige evidência positiva
+ * de trabalho remoto — na string de localização ou no título. Existe porque a
+ * política gravada e a política real podem divergir: em 18/11/2026, o
+ * location_filter permitia São Paulo, Rio e Curitiba, e 366 das 539 linhas do
+ * pipeline (68%) eram presenciais ou híbridas contra uma política de "remoto,
+ * ou Goiânia presencial".
+ *
+ * Deliberadamente NÃO deixa passar localização vazia. O modo normal passa, para
+ * não punir dado ausente; aqui, sem prova de remoto, a vaga cai. Quem pede
+ * "só remotas" prefere perder uma vaga sem rótulo a receber dez presenciais.
+ *
+ * @param {object|null} locationFilter - bloco location_filter do portals.yml
+ * @param {{remoteOnly?: boolean}} [opts]
+ */
+export function buildLocationFilter(locationFilter, opts = {}) {
+  if (opts.remoteOnly) {
+    return (location, url, title) => {
+      const lower = typeof location === 'string' ? location.trim().toLowerCase() : '';
+      // Híbrido não é remoto. Verificado antes do teste de remoto porque muitas
+      // vagas escrevem "Híbrido — São Paulo (remoto 2x/semana)".
+      if (/h[íi]brido|hybrid|presencial|on-?site/i.test(lower)) return false;
+      if (/remoto|remote|home[- ]office|anywhere|teletrabalho/i.test(lower)) return true;
+      return titleSignalsRemote(title);
+    };
+  }
   if (!locationFilter) return () => true;
   const alwaysAllow = compileLocationKeywordList(locationFilter.always_allow);
   const allow = compileLocationKeywordList(locationFilter.allow);
@@ -1870,6 +1902,9 @@ async function main() {
   // --include-blacklisted: bypass the data/blacklist.md filter for auditing.
   // Matching postings flow through annotated instead of being counted out.
   const includeBlacklisted = args.includes('--include-blacklisted');
+  // --remote-only: exige evidencia de trabalho remoto, ignorando o allow do
+  // portals.yml. Para quando a politica gravada e mais larga que a real.
+  const REMOTE_ONLY = args.includes('--remote-only');
   const companyFlag = args.indexOf('--company');
   const filterCompany = companyFlag !== -1 ? args[companyFlag + 1]?.toLowerCase() : null;
   // --posted-after / --posted-before <YYYY-MM-DD>: absolute-date bounds on the
@@ -1932,7 +1967,7 @@ async function main() {
     classifyTier = mod.classifyTier || mod.default;
   }
 
-  const locationFilter = buildLocationFilter(config.location_filter);
+  const locationFilter = buildLocationFilter(config.location_filter, { remoteOnly: REMOTE_ONLY });
   const postingAgeFilter = buildPostingAgeFilter(config.max_posting_age_days);
   const postedDateFilter = buildPostedDateFilter(postedAfter, postedBefore);
   const salaryFilter = buildSalaryFilter(config.salary_filter);

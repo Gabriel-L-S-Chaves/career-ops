@@ -5145,6 +5145,37 @@ try {
     fail('null locationFilter should return a pass-all filter');
   }
 
+  // Case 7b: --remote-only ignores allow/block and demands proof of remote.
+  // Added 18/11/2026: the stored location_filter allowed São Paulo, Rio and
+  // Curitiba while the real policy was "remote, or Goiânia on-site", so 68% of
+  // a 539-line pipeline was on-site or hybrid. This mode is the escape hatch.
+  const remoteOnly = buildLocationFilter(
+    { allow: ['são paulo', 'goiânia'], block: ['estados unidos'] },
+    { remoteOnly: true },
+  );
+  if (remoteOnly('Remoto') && remoteOnly('Remoto, remote') && remoteOnly('Home Office'))
+    pass('--remote-only accepts an explicitly remote location');
+  else fail('--remote-only rejected a plainly remote location');
+
+  if (!remoteOnly('São Paulo, São Paulo, Presencial, on-site'))
+    pass('--remote-only rejects on-site even when the city is in allow');
+  else fail('--remote-only let an on-site allow-listed city through');
+
+  if (!remoteOnly('São Paulo, Híbrido, hybrid') && !remoteOnly('Híbrido — São Paulo (remoto 2x/semana)'))
+    pass('--remote-only treats hybrid as not remote, even when the string says "remoto"');
+  else fail('--remote-only accepted a hybrid posting');
+
+  // Deliberate divergence from the normal filter, which passes empty location
+  // so missing data is not punished. Whoever asks for remote-only would rather
+  // lose an unlabelled posting than receive ten on-site ones.
+  if (!remoteOnly(''))
+    pass('--remote-only rejects an empty location (no proof of remote)');
+  else fail('--remote-only passed an empty location');
+
+  if (remoteOnly('', 'https://x.test/j/1', 'Analista de Operações (Remoto)'))
+    pass('--remote-only still honours a remote signal in the title');
+  else fail('--remote-only ignored a remote signal in the title');
+
   // Case 8: string-instead-of-array → wrapped to a 1-item list
   const stringFilter = buildLocationFilter({ always_allow: 'belgium', block: ['france'] });
   if (stringFilter('Remote, Belgium or France') === true) {

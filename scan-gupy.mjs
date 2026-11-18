@@ -75,6 +75,7 @@ const value = (name) => {
 const DEBUG = flag('debug');
 const HEADED = flag('headed');
 const DRY_RUN = flag('dry-run');
+const REMOTE_ONLY = flag('remote-only');
 const ONLY = (value('only') || '')
   .split(',')
   .map((s) => s.trim().toLowerCase())
@@ -390,7 +391,7 @@ async function main() {
   }
 
   const passesTitle = buildTitleFilter(config.title_filter);
-  const passesLocation = buildLocationFilter(config.location_filter);
+  const passesLocation = buildLocationFilter(config.location_filter, { remoteOnly: REMOTE_ONLY });
   const passesAge = buildPostingAgeFilter(config.max_posting_age_days);
   const blacklist = loadBlacklist();
   // 18/11/2026: duas correções na mesma chamada.

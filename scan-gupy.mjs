@@ -150,6 +150,25 @@ const FIRST = (obj, keys) => {
 };
 
 /**
+ * Monta o segmento de URL que a Gupy usa para uma vaga: o base64 de
+ * `{"jobId":N,"source":"company_page"}`.
+ *
+ * Só codifica quando o id é um inteiro — que é o que os boards de empresa
+ * entregam. Para qualquer outra coisa devolve o id cru, porque inventar um
+ * token sobre um id de formato desconhecido produziria um link quebrado
+ * silencioso, e link quebrado no pipeline é pior que link estranho.
+ *
+ * @param {string|number} id
+ * @returns {string}
+ */
+export function gupyJobToken(id) {
+  const n = typeof id === 'number' ? id : Number(String(id).trim());
+  if (!Number.isInteger(n) || n <= 0) return String(id);
+  const payload = JSON.stringify({ jobId: n, source: 'company_page' });
+  return Buffer.from(payload, 'utf8').toString('base64');
+}
+
+/**
  * A Gupy já mudou o nome dos campos mais de uma vez, e o payload de empresa
  * difere do payload do portal. Em vez de fixar um formato, aceitamos os
  * apelidos conhecidos e exigimos apenas o mínimo: um título e um id.
@@ -171,7 +190,16 @@ export function normalizeGupyJob(raw, target) {
   // A Gupy marca remoto num campo próprio; sem isso, uma vaga 100% remota
   // chegaria ao filtro de localização como string vazia e passaria por sorte,
   // não por mérito. Melhor declarar.
-  const remoteFlag = raw.isRemoteWork ?? raw.remote ?? raw.workplaceType;
+  // 18/11/2026: nos boards reais (PagBank, 918 vagas) a marca de remoto NÃO está
+  // no nível de cima — está em `workplace.workplaceType`, com valores
+  // `on-site` / `remote` / `hybrid`. Ler só `raw.workplaceType` fazia toda vaga
+  // remota chegar ao filtro de localização como string vazia. `raw.type` NÃO
+  // entra aqui: na Gupy ele vale "vacancy_type_effective", um enum de tipo de
+  // contratação, e tratá-lo como local foi erro meu na medição de 17/11.
+  const remoteFlag = raw.isRemoteWork
+    ?? raw.remote
+    ?? raw.workplaceType
+    ?? raw.workplace?.workplaceType;
   const isRemote = remoteFlag === true
     || (typeof remoteFlag === 'string' && /remote|remoto/i.test(remoteFlag));
   if (isRemote) location = location ? `${location} (Remoto)` : 'Remoto';
@@ -181,10 +209,19 @@ export function normalizeGupyJob(raw, target) {
   const published = publishedRaw ? Date.parse(publishedRaw) : NaN;
 
   // O caminho canônico de uma vaga Gupy de empresa.
+  //
+  // 18/11/2026: `/job/{id}` NÃO é o formato da Gupy. Um link assim redireciona
+  // para a raiz do board — o usuário encontrou isso clicando num link que este
+  // scan tinha escrito. O segmento é o base64 de {"jobId":N,"source":"..."}:
+  //
+  //   /job/eyJqb2JJZCI6MTE4NzY4NTUsInNvdXJjZSI6ImNvbXBhbnlfcGFnZSJ9
+  //   → {"jobId":11876855,"source":"company_page"}
+  //
+  // Verificado byte a byte contra um link real da PagBank antes de escrever isto.
   const explicit = FIRST(raw, ['jobUrl', 'url', 'applyUrl']);
   const url = explicit && /^https?:\/\//.test(explicit)
     ? explicit
-    : `${target.url}/job/${id}`;
+    : `${target.url}/job/${gupyJobToken(id)}`;
 
   return {
     url,

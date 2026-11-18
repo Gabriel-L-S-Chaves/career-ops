@@ -38,6 +38,25 @@ const LIMIT = Number(opt('limit', '0')) || Infinity;
 const OUT_DIR = 'jds';
 const PIPELINE = join('data', 'pipeline.md');
 
+/**
+ * Sinais de que a pagina capturada e o INDICE do board, e nao um anuncio.
+ *
+ * 18/11/2026: a vaga da RD Station tinha sido removida, o Greenhouse
+ * redirecionou para o indice do board, e o script salvou a pagina
+ * institucional como se fosse o anuncio — com titulo "Jobs at RD Station",
+ * texto sobre beneficios e uma lista de duas vagas nenhuma delas a buscada.
+ * Entregar isso como JD e pior que falhar: um texto plausivel e errado leva a
+ * uma avaliacao inteira baseada em nada.
+ */
+const INDEX_PAGE_SIGNALS = [
+  /create a job alert/i,
+  /\b\d+\s+jobs?\b/i,
+  /^jobs at /i,
+  /banco de talentos/i,
+  /todas as vagas/i,
+  /ver todas as (vagas|oportunidades)/i,
+];
+
 /** Ruido de navegacao que nenhuma vaga precisa. Comparado em minusculas. */
 const NOISE = [
   'cookie', 'aceitar todos', 'política de privacidade', 'politica de privacidade',
@@ -134,6 +153,7 @@ console.log(`\n📄 Buscando ${targets.length} anuncio(s)...\n`);
 const browser = await chromium.launch();
 const page = await browser.newPage();
 const saved = [];
+let indexPages = 0;
 
 for (const t of targets) {
   process.stdout.write(`  ${t.note || t.url.slice(0, 60)} ... `);
@@ -149,6 +169,17 @@ for (const t of targets) {
     const body = clean(text);
     if (body.length < 200) {
       console.log(`⚠️  so ${body.length} caracteres — pagina pode nao ter carregado`);
+      continue;
+    }
+
+    // Antes de salvar: isto e mesmo um anuncio, ou o indice do board?
+    const haystack = `${title}\n${body}`;
+    const hits = INDEX_PAGE_SIGNALS.filter((re) => re.test(haystack));
+    if (hits.length >= 2) {
+      console.log('⚠️  parece o INDICE do board, nao um anuncio — vaga provavelmente removida');
+      console.log(`      titulo: ${String(title).slice(0, 60)}`);
+      console.log('      nada salvo. Confirme com check-liveness.mjs');
+      indexPages++;
       continue;
     }
     const name = `${slug(t.note || title || 'vaga')}.md`;
@@ -174,7 +205,9 @@ for (const t of targets) {
 await browser.close();
 
 console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-console.log(`${saved.length} anuncio(s) salvos em ${OUT_DIR}/\n`);
+console.log(`${saved.length} anuncio(s) salvos em ${OUT_DIR}/`);
+if (indexPages) console.log(`${indexPages} pagina(s) de indice descartada(s) — vaga removida do board`);
+console.log("");
 
 if (!QUIET) {
   for (const s of saved) {

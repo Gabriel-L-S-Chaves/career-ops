@@ -181,6 +181,7 @@ const SYSTEM_PATHS = [
   'diag-gupy-titles.mjs',
   'fix-title-filter.mjs',
   'fetch-jd.mjs',
+  'rebuild-tracker.mjs',
   'company-funded.mjs',
   'match-star.mjs',
   'jd-skill-gap.mjs',

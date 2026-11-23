@@ -3775,6 +3775,8 @@ try {
   const badContentFilterPath = join(tmp, 'bad-content-filter.yml');
   const deadByTitleKeywordPath = join(tmp, 'dead-by-title-keyword.yml');
   const badVisaFilterPath = join(tmp, 'bad-visa-filter.yml');
+  const apiAtsMismatchPath = join(tmp, 'api-ats-mismatch.yml');
+  const apiAtsSamePath = join(tmp, 'api-ats-same.yml');
 
   writeFileSync(validPath, `
 title_filter:
@@ -3860,6 +3862,30 @@ tracked_companies:
     careers_url: "https://jobs.lever.co/acme"
 `, 'utf-8');
 
+  // Um `api:` de um ATS junto de um `careers_url` de outro: o api: vence na
+  // resolução de provider e o board do careers_url nunca é varrido. A Nubank
+  // ficou semanas invisível assim, com 111 vagas no Ashby e um api: do
+  // Greenhouse vazio. Deve AVISAR (a config é válida, só está contraditória).
+  writeFileSync(apiAtsMismatchPath, `
+title_filter:
+  positive: ["AI"]
+tracked_companies:
+  - name: "Acme"
+    careers_url: "https://jobs.ashbyhq.com/acme"
+    api: "https://boards-api.greenhouse.io/v1/boards/acme/jobs"
+`, 'utf-8');
+
+  // O negativo que protege o aviso de virar ruído: fixar o board do MESMO ATS
+  // sob uma careers_url institucional é uso legítimo e documentado.
+  writeFileSync(apiAtsSamePath, `
+title_filter:
+  positive: ["AI"]
+tracked_companies:
+  - name: "Acme"
+    careers_url: "https://jobs.ashbyhq.com/acme"
+    api: "https://api.ashbyhq.com/posting-api/job-board/acme"
+`, 'utf-8');
+
   const validResult = run(NODE, ['validate-portals.mjs', '--file', validPath]);
   if (validResult !== null && validResult.includes('0 errors')) {
     pass('validate-portals accepts a minimal valid portals file');
@@ -3921,6 +3947,22 @@ tracked_companies:
     pass('validate-portals rejects invalid visa_filter (empty keyword / non-boolean require_mention)');
   } else {
     fail('validate-portals should reject invalid visa_filter');
+  }
+
+  const apiAtsMismatchResult = run(NODE, ['validate-portals.mjs', '--file', apiAtsMismatchPath]);
+  if (apiAtsMismatchResult !== null
+      && apiAtsMismatchResult.includes('1 warning')
+      && apiAtsMismatchResult.includes('api wins')) {
+    pass('validate-portals warns when api: and careers_url point at different ATS platforms');
+  } else {
+    fail('validate-portals should warn (not error) when api: overrides a careers_url from another ATS');
+  }
+
+  const apiAtsSameResult = run(NODE, ['validate-portals.mjs', '--file', apiAtsSamePath]);
+  if (apiAtsSameResult !== null && apiAtsSameResult.includes('0 warnings')) {
+    pass('validate-portals stays silent when api: pins a board on the same ATS as careers_url');
+  } else {
+    fail('validate-portals should not warn when api: and careers_url share one ATS');
   }
 
   rmSync(tmp, { recursive: true, force: true });

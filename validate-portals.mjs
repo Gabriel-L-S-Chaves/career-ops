@@ -14,6 +14,7 @@ import { join, dirname, resolve } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath, pathToFileURL } from 'url';
 import yaml from 'js-yaml';
+import { loadProviders, resolveProvider } from './providers/_registry.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PROVIDERS_DIR = join(ROOT, 'providers');
@@ -86,6 +87,20 @@ function validateParser(parser, path, errors) {
   }
 }
 
+/**
+ * Qual provider atenderia uma entrada que tivesse SÓ este campo de URL.
+ *
+ * Usa a resolução de verdade (`resolveProvider`) em vez de uma tabela de hosts
+ * escrita à mão: assim um provider novo entra no aviso sozinho, sem ninguém
+ * lembrar de atualizar este arquivo. `local-parser` fica de fora porque ele
+ * decide por `parser.command`, não por URL, e aqui a entrada chega sem parser.
+ */
+function detectProviderId(entry, providers) {
+  if (!providers || providers.size === 0) return null;
+  const hit = resolveProvider(entry, providers, { skipIds: ['local-parser'] });
+  return hit && 'provider' in hit ? hit.provider.id : null;
+}
+
 async function loadProviderIds() {
   const ids = new Set();
   if (existsSync(PROVIDERS_DIR)) {
@@ -115,7 +130,7 @@ async function loadProviderIds() {
   return ids;
 }
 
-export async function validatePortalsConfig(config, { providerIds = new Set() } = {}) {
+export async function validatePortalsConfig(config, { providerIds = new Set(), providers = null } = {}) {
   const errors = [];
   const warnings = [];
 
@@ -224,6 +239,37 @@ export async function validatePortalsConfig(config, { providerIds = new Set() } 
       validateUrl(company.careers_url, `${base}.careers_url`, errors);
       validateUrl(company.api, `${base}.api`, errors);
 
+      // ── api: de um ATS, careers_url: de outro ────────────────────────────
+      // Um `api:` tem precedência sobre o `careers_url` dentro de cada provider,
+      // e os providers são testados em ordem alfabética. Se o `api:` aponta para
+      // outro ATS, o provider certo cai no proprio `detect()` (a asserção de host
+      // lança, o catch devolve null) e quem ganha é o provider do `api:` obsoleto.
+      // O sintoma é "board vivo mas vazio", indistinguível de empresa sem vaga.
+      //
+      // 23/11/2026: a Nubank ficou semanas invisivel assim. A entrada tinha
+      // `careers_url: jobs.ashbyhq.com/nubank` (111 vagas) e um `api:` antigo do
+      // Greenhouse (0 vagas). Alguem ja havia descoberto o board novo e escrito a
+      // URL certa; o `api:` sobreviveu e anulou a correcao em silencio.
+      //
+      // Aviso, não erro: um `api:` que aponta para o MESMO ATS do careers_url é
+      // uso legítimo (fixar um board especifico sob uma careers_url institucional,
+      // como o comentario do providers/ashby.mjs descreve).
+      if (company.provider === undefined
+          && typeof company.api === 'string' && company.api.trim() !== ''
+          && typeof company.careers_url === 'string' && company.careers_url.trim() !== '') {
+        const fromApi = detectProviderId({ name: company.name, api: company.api }, providers);
+        const fromCareers = detectProviderId({ name: company.name, careers_url: company.careers_url }, providers);
+        if (fromApi && fromCareers && fromApi !== fromCareers) {
+          add(
+            warnings,
+            `${base}.api`,
+            `api: resolves to provider "${fromApi}" but careers_url resolves to "${fromCareers}" — api wins, `
+            + `so the careers_url board is never scanned (shows up as live-but-empty). `
+            + `Drop the api: line to use ${fromCareers}, or point it at the ${fromCareers} board instead.`
+          );
+        }
+      }
+
       if (company.provider !== undefined) {
         if (typeof company.provider !== 'string' || company.provider.trim() === '') {
           add(errors, `${base}.provider`, 'provider must be a non-empty string when set');
@@ -248,8 +294,16 @@ async function validateFile(filePath) {
     throw new Error(`file not found: ${filePath}`);
   }
   const providerIds = await loadProviderIds();
+  // Um checkout sem providers/ ainda valida o resto do schema; só o aviso de
+  // api:/careers_url conflitante fica de fora.
+  let providers = null;
+  try {
+    providers = existsSync(PROVIDERS_DIR) ? await loadProviders(PROVIDERS_DIR) : null;
+  } catch {
+    providers = null;
+  }
   const parsed = yaml.load(readFileSync(filePath, 'utf-8'));
-  return validatePortalsConfig(parsed, { providerIds });
+  return validatePortalsConfig(parsed, { providerIds, providers });
 }
 
 async function runSelfTest() {
@@ -268,6 +322,32 @@ tracked_companies:
     if (result.errors.length !== 2) {
       throw new Error(`expected 2 errors, got ${result.errors.length}`);
     }
+
+    // api: de outro ATS que o careers_url → aviso, nunca erro (ver o bloco no
+    // loop de tracked_companies). Vale também o negativo: api: do mesmo ATS é
+    // uso legitimo e nao pode avisar.
+    const mismatch = join(tmp, 'api-mismatch.yml');
+    writeFileSync(mismatch, `
+tracked_companies:
+  - name: "Mismatch"
+    careers_url: "https://jobs.ashbyhq.com/acme"
+    api: "https://boards-api.greenhouse.io/v1/boards/acme/jobs"
+  - name: "Same ATS pin"
+    careers_url: "https://jobs.ashbyhq.com/beta"
+    api: "https://api.ashbyhq.com/posting-api/job-board/beta"
+`, 'utf-8');
+    const mismatchResult = await validateFile(mismatch);
+    if (mismatchResult.errors.length !== 0) {
+      throw new Error(`api/careers_url mismatch must warn, not error (got ${mismatchResult.errors.length} errors)`);
+    }
+    const apiWarnings = mismatchResult.warnings.filter(w => w.path.endsWith('.api'));
+    if (apiWarnings.length !== 1) {
+      throw new Error(`expected exactly 1 api: warning, got ${apiWarnings.length}`);
+    }
+    if (apiWarnings[0].path !== 'tracked_companies[0].api') {
+      throw new Error(`warning hit the wrong entry: ${apiWarnings[0].path}`);
+    }
+
     console.log('validate-portals self-test OK');
   } finally {
     rmSync(tmp, { recursive: true, force: true });

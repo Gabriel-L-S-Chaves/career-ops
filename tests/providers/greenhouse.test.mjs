@@ -337,6 +337,271 @@ try {
     }
   }
 
+  // ── HTML embed-board fallback (26/11/2026) ────────────────────────────
+  // Motivation: a network that intercepts boards-api.greenhouse.io only (TLS
+  // untrusted-root) takes every Greenhouse board down at once while the
+  // job-boards host stays reachable. These cover the fallback, its pagination
+  // and — importantly — that a failed fallback never masks the real cause.
+  const { resolveBoardToken, embedUrlFor, parseEmbedPage } = greenhouseModule;
+
+  /** One posting row in the real embed-board markup. */
+  const embedRow = (id, title, location) =>
+    `<tr class="job-post"><td class="cell"><a href="https://job-boards.greenhouse.io/stone/jobs/${id}" target="_top">`
+    + `<p class="body body--medium">${title}</p>`
+    + `<p class="body body__secondary body--metadata">${location}</p>`
+    + `</a></td></tr>`;
+
+  /** A page of `n` postings whose ids start at `from`. */
+  const embedPage = (from, n) => {
+    let html = '<h3>Comercial</h3><div class="job-posts--table"><table><tbody>';
+    for (let i = 0; i < n; i += 1) html += embedRow(8000000000 + from + i, `Vaga ${from + i}`, 'Goiânia, Goias, Brasil');
+    return `${html}</tbody></table></div>`;
+  };
+
+  // parseEmbedPage — title, url, location, and no fabricated date.
+  {
+    const rows = parseEmbedPage(
+      embedRow(8209262003, 'Agente Stone - Consultor(a) Comercial Externo |  Apucarana/PR', 'Apucarana, Parana, Brasil'),
+      'Stone Co',
+    );
+    const r = rows[0];
+    if (rows.length === 1
+        && r.url === 'https://job-boards.greenhouse.io/stone/jobs/8209262003'
+        && r.title === 'Agente Stone - Consultor(a) Comercial Externo | Apucarana/PR'
+        && r.location === 'Apucarana, Parana, Brasil'
+        && r.company === 'Stone Co'
+        && r.postedAt === undefined) {
+      pass('parseEmbedPage extracts title, url and location, collapses whitespace, and leaves postedAt absent');
+    } else {
+      fail(`parseEmbedPage returned ${JSON.stringify(rows)}`);
+    }
+  }
+
+  // Entities in the title must be decoded, not passed through to the tracker.
+  {
+    const rows = parseEmbedPage(embedRow(1, 'Analista de Opera&#231;&#245;es &amp; Controles', 'Remoto'), 'Acme');
+    if (rows.length === 1 && rows[0].title === 'Analista de Operações & Controles') {
+      pass('parseEmbedPage decodes named and numeric HTML entities in the title');
+    } else {
+      fail(`parseEmbedPage entity decoding returned ${JSON.stringify(rows)}`);
+    }
+  }
+
+  // A job-shaped anchor with no title <p> is chrome, not a posting. It must
+  // not be counted, or the page-size comparison that decides whether to fetch
+  // another page is wrong.
+  {
+    const rows = parseEmbedPage(
+      `<a href="https://job-boards.greenhouse.io/stone/jobs/42" target="_top"><span>Ver vaga</span></a>`
+      + embedRow(43, 'Real', 'Remoto'),
+      'Acme',
+    );
+    if (rows.length === 1 && rows[0].title === 'Real') {
+      pass('parseEmbedPage ignores a posting-shaped anchor that carries no title paragraph');
+    } else {
+      fail(`parseEmbedPage chrome filtering returned ${JSON.stringify(rows)}`);
+    }
+  }
+
+  // resolveBoardToken — every field that can carry the token.
+  {
+    const cases = [
+      [{ careers_url: 'https://job-boards.greenhouse.io/stone' }, 'stone', false],
+      [{ careers_url: 'https://job-boards.eu.greenhouse.io/euco' }, 'euco', true],
+      [{ api: 'https://boards-api.greenhouse.io/v1/boards/getnet/jobs' }, 'getnet', false],
+      [{ api: 'https://job-boards.greenhouse.io/embed/job_board?for=sumup' }, 'sumup', false],
+    ];
+    const wrong = cases.filter(([entry, token, eu]) => {
+      const got = resolveBoardToken(entry);
+      return !got || got.token !== token || got.eu !== eu;
+    });
+    if (wrong.length === 0) {
+      pass('resolveBoardToken reads the token from careers_url, boards-api api:, and an embed ?for= (and flags the EU host)');
+    } else {
+      fail(`resolveBoardToken wrong for ${JSON.stringify(wrong.map(([e]) => e))}`);
+    }
+    if (resolveBoardToken({ careers_url: 'https://example.com/careers' }) === null) {
+      pass('resolveBoardToken returns null for a non-Greenhouse entry');
+    } else {
+      fail('resolveBoardToken claimed a non-Greenhouse entry');
+    }
+  }
+
+  // embedUrlFor — host, token escaping, page.
+  if (embedUrlFor({ token: 'stone', eu: false }, 3)
+        === 'https://job-boards.greenhouse.io/embed/job_board?for=stone&page=3'
+      && embedUrlFor({ token: 'eu co', eu: true }, 1)
+        === 'https://job-boards.eu.greenhouse.io/embed/job_board?for=eu%20co&page=1') {
+    pass('embedUrlFor builds the embed URL per host and percent-encodes the token');
+  } else {
+    fail(`embedUrlFor returned ${embedUrlFor({ token: 'stone', eu: false }, 3)}`);
+  }
+
+  // fetch() — JSON unreachable, embed board answers: paginate 50 + 9 and stop
+  // without requesting the empty page after the short one.
+  {
+    const asked = [];
+    const warnings = [];
+    const realConsole = console.error;
+    console.error = (m) => warnings.push(String(m));
+    let rows;
+    try {
+      rows = await greenhouse.fetch(
+        { name: 'Stone Co', careers_url: 'https://job-boards.greenhouse.io/stone' },
+        {
+          fetchJson: async () => { throw new Error('fetch failed'); },
+          fetchText: async (url) => {
+            asked.push(url);
+            const page = Number(new URL(url).searchParams.get('page'));
+            if (page === 1) return embedPage(1, 50);
+            if (page === 2) return embedPage(51, 9);
+            return '<html><body>no postings</body></html>';
+          },
+        },
+      );
+    } finally {
+      console.error = realConsole;
+    }
+    const uniqueUrls = new Set(rows.map(r => r.url)).size;
+    if (rows.length === 59 && uniqueUrls === 59 && asked.length === 2
+        && warnings.length === 1 && /fell back to the HTML embed board, 59 posting\(s\)/.test(warnings[0])
+        && /fetch failed/.test(warnings[0])) {
+      pass('greenhouse.fetch() falls back to the embed board when the JSON API is unreachable, paginates 50+9, stops on the short page, and warns with the original cause');
+    } else {
+      fail(`greenhouse.fetch() fallback: rows=${rows?.length}, unique=${uniqueUrls}, pages=${JSON.stringify(asked)}, warnings=${JSON.stringify(warnings)}`);
+    }
+  }
+
+  // fetch() — a board that ignores `page` must not spin. Page 1 repeats, so
+  // the second request adds nothing new and the walk ends there.
+  {
+    let calls = 0;
+    const realConsole = console.error;
+    console.error = () => {};
+    let rows;
+    try {
+      rows = await greenhouse.fetch(
+        { name: 'Frozen', careers_url: 'https://job-boards.greenhouse.io/frozen' },
+        {
+          fetchJson: async () => { throw new Error('fetch failed'); },
+          fetchText: async () => { calls += 1; return embedPage(1, 50); },
+        },
+      );
+    } finally {
+      console.error = realConsole;
+    }
+    if (rows.length === 50 && calls === 2) {
+      pass('greenhouse.fetch() stops after one repeated page when the board ignores page= (no infinite walk)');
+    } else {
+      fail(`greenhouse.fetch() repeat guard: rows=${rows?.length}, calls=${calls}`);
+    }
+  }
+
+  // fetch() — ctx.maxPages (verify-portals passes 1) caps the walk.
+  {
+    let calls = 0;
+    const realConsole = console.error;
+    console.error = () => {};
+    let rows;
+    try {
+      rows = await greenhouse.fetch(
+        { name: 'Probe', careers_url: 'https://job-boards.greenhouse.io/probe' },
+        {
+          fetchJson: async () => { throw new Error('fetch failed'); },
+          fetchText: async (url) => { calls += 1; return embedPage(Number(new URL(url).searchParams.get('page')) * 100, 50); },
+          maxPages: 1,
+        },
+      );
+    } finally {
+      console.error = realConsole;
+    }
+    if (calls === 1 && rows.length === 50) {
+      pass('greenhouse.fetch() honors ctx.maxPages so the health probe reads one page, not a whole board');
+    } else {
+      fail(`greenhouse.fetch() maxPages: calls=${calls}, rows=${rows?.length}`);
+    }
+  }
+
+  // fetch() — when the fallback cannot run either, the ORIGINAL API error
+  // must surface. Reporting the fallback's error instead would point the
+  // "unreachable for 3+ runs" signal at the wrong host.
+  {
+    let threw;
+    try {
+      await greenhouse.fetch(
+        { name: 'Stone Co', careers_url: 'https://job-boards.greenhouse.io/stone' },
+        {
+          fetchJson: async () => { throw new Error('boards-api TLS: untrusted root'); },
+          fetchText: async () => { throw new Error('embed board also down'); },
+        },
+      );
+    } catch (e) {
+      threw = e;
+    }
+    if (threw && /boards-api TLS: untrusted root/.test(threw.message)) {
+      pass('greenhouse.fetch() rethrows the original JSON-API error when the embed fallback also fails');
+    } else {
+      fail(`greenhouse.fetch() masked the original error: ${threw?.message}`);
+    }
+  }
+
+  // fetch() — an empty embed board is not a fallback success. The original
+  // error still wins, so a dead board does not read as "reachable, 0 jobs".
+  {
+    let threw;
+    try {
+      await greenhouse.fetch(
+        { name: 'Dead', careers_url: 'https://job-boards.greenhouse.io/dead' },
+        {
+          fetchJson: async () => { throw new Error('original cause'); },
+          fetchText: async () => '<html><body>nothing here</body></html>',
+        },
+      );
+    } catch (e) {
+      threw = e;
+    }
+    if (threw && /original cause/.test(threw.message)) {
+      pass('greenhouse.fetch() reports the original error when the embed board parses to zero postings');
+    } else {
+      fail(`greenhouse.fetch() empty-board handling: ${threw?.message}`);
+    }
+  }
+
+  // fetch() — a ctx with no fetchText at all (older callers) must not crash.
+  {
+    let threw;
+    try {
+      await greenhouse.fetch(
+        { name: 'Stone Co', careers_url: 'https://job-boards.greenhouse.io/stone' },
+        { fetchJson: async () => { throw new Error('json down'); } },
+      );
+    } catch (e) {
+      threw = e;
+    }
+    if (threw && /json down/.test(threw.message)) {
+      pass('greenhouse.fetch() survives a context without fetchText and reports the original error');
+    } else {
+      fail(`greenhouse.fetch() without fetchText: ${threw?.message}`);
+    }
+  }
+
+  // A successful JSON fetch must never touch the embed board.
+  {
+    let textCalls = 0;
+    const rows = await greenhouse.fetch(
+      { name: 'Healthy', careers_url: 'https://job-boards.greenhouse.io/healthy' },
+      {
+        fetchJson: async () => ({ jobs: [{ id: 1, title: 'Ok', absolute_url: 'https://x/1', location: { name: 'Remote' } }] }),
+        fetchText: async () => { textCalls += 1; return embedPage(1, 50); },
+      },
+    );
+    if (rows.length === 1 && textCalls === 0) {
+      pass('greenhouse.fetch() does not touch the embed board when the JSON API answers');
+    } else {
+      fail(`greenhouse.fetch() healthy path: rows=${rows.length}, textCalls=${textCalls}`);
+    }
+  }
+
 } catch (e) {
   fail(`greenhouse provider tests crashed: ${e.message}`);
 }

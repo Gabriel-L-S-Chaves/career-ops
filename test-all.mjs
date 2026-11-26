@@ -3775,6 +3775,8 @@ try {
   const badContentFilterPath = join(tmp, 'bad-content-filter.yml');
   const deadByTitleKeywordPath = join(tmp, 'dead-by-title-keyword.yml');
   const badVisaFilterPath = join(tmp, 'bad-visa-filter.yml');
+  const apiAtsMismatchPath = join(tmp, 'api-ats-mismatch.yml');
+  const apiAtsSamePath = join(tmp, 'api-ats-same.yml');
 
   writeFileSync(validPath, `
 title_filter:
@@ -3860,6 +3862,30 @@ tracked_companies:
     careers_url: "https://jobs.lever.co/acme"
 `, 'utf-8');
 
+  // Um `api:` de um ATS junto de um `careers_url` de outro: o api: vence na
+  // resolução de provider e o board do careers_url nunca é varrido. A Nubank
+  // ficou semanas invisível assim, com 111 vagas no Ashby e um api: do
+  // Greenhouse vazio. Deve AVISAR (a config é válida, só está contraditória).
+  writeFileSync(apiAtsMismatchPath, `
+title_filter:
+  positive: ["AI"]
+tracked_companies:
+  - name: "Acme"
+    careers_url: "https://jobs.ashbyhq.com/acme"
+    api: "https://boards-api.greenhouse.io/v1/boards/acme/jobs"
+`, 'utf-8');
+
+  // O negativo que protege o aviso de virar ruído: fixar o board do MESMO ATS
+  // sob uma careers_url institucional é uso legítimo e documentado.
+  writeFileSync(apiAtsSamePath, `
+title_filter:
+  positive: ["AI"]
+tracked_companies:
+  - name: "Acme"
+    careers_url: "https://jobs.ashbyhq.com/acme"
+    api: "https://api.ashbyhq.com/posting-api/job-board/acme"
+`, 'utf-8');
+
   const validResult = run(NODE, ['validate-portals.mjs', '--file', validPath]);
   if (validResult !== null && validResult.includes('0 errors')) {
     pass('validate-portals accepts a minimal valid portals file');
@@ -3921,6 +3947,22 @@ tracked_companies:
     pass('validate-portals rejects invalid visa_filter (empty keyword / non-boolean require_mention)');
   } else {
     fail('validate-portals should reject invalid visa_filter');
+  }
+
+  const apiAtsMismatchResult = run(NODE, ['validate-portals.mjs', '--file', apiAtsMismatchPath]);
+  if (apiAtsMismatchResult !== null
+      && apiAtsMismatchResult.includes('1 warning')
+      && apiAtsMismatchResult.includes('api wins')) {
+    pass('validate-portals warns when api: and careers_url point at different ATS platforms');
+  } else {
+    fail('validate-portals should warn (not error) when api: overrides a careers_url from another ATS');
+  }
+
+  const apiAtsSameResult = run(NODE, ['validate-portals.mjs', '--file', apiAtsSamePath]);
+  if (apiAtsSameResult !== null && apiAtsSameResult.includes('0 warnings')) {
+    pass('validate-portals stays silent when api: pins a board on the same ATS as careers_url');
+  } else {
+    fail('validate-portals should not warn when api: and careers_url share one ATS');
   }
 
   rmSync(tmp, { recursive: true, force: true });
@@ -5144,6 +5186,37 @@ try {
   } else {
     fail('null locationFilter should return a pass-all filter');
   }
+
+  // Case 7b: --remote-only ignores allow/block and demands proof of remote.
+  // Added 18/11/2026: the stored location_filter allowed São Paulo, Rio and
+  // Curitiba while the real policy was "remote, or Goiânia on-site", so 68% of
+  // a 539-line pipeline was on-site or hybrid. This mode is the escape hatch.
+  const remoteOnly = buildLocationFilter(
+    { allow: ['são paulo', 'goiânia'], block: ['estados unidos'] },
+    { remoteOnly: true },
+  );
+  if (remoteOnly('Remoto') && remoteOnly('Remoto, remote') && remoteOnly('Home Office'))
+    pass('--remote-only accepts an explicitly remote location');
+  else fail('--remote-only rejected a plainly remote location');
+
+  if (!remoteOnly('São Paulo, São Paulo, Presencial, on-site'))
+    pass('--remote-only rejects on-site even when the city is in allow');
+  else fail('--remote-only let an on-site allow-listed city through');
+
+  if (!remoteOnly('São Paulo, Híbrido, hybrid') && !remoteOnly('Híbrido — São Paulo (remoto 2x/semana)'))
+    pass('--remote-only treats hybrid as not remote, even when the string says "remoto"');
+  else fail('--remote-only accepted a hybrid posting');
+
+  // Deliberate divergence from the normal filter, which passes empty location
+  // so missing data is not punished. Whoever asks for remote-only would rather
+  // lose an unlabelled posting than receive ten on-site ones.
+  if (!remoteOnly(''))
+    pass('--remote-only rejects an empty location (no proof of remote)');
+  else fail('--remote-only passed an empty location');
+
+  if (remoteOnly('', 'https://x.test/j/1', 'Analista de Operações (Remoto)'))
+    pass('--remote-only still honours a remote signal in the title');
+  else fail('--remote-only ignored a remote signal in the title');
 
   // Case 8: string-instead-of-array → wrapped to a 1-item list
   const stringFilter = buildLocationFilter({ always_allow: 'belgium', block: ['france'] });

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{NAME}} — CV</title>
+<style>
+  /* ── Variante "executive" do cv-template.html ────────────────────────────
+     Mesmas garantias de ATS do template original (ver comentários abaixo),
+     com um layout diferente:
+
+       · faixa escura no topo, com nome e UMA LINHA DE POSICIONAMENTO
+         (cargo | domínio) — o ganho mais relevante frente ao template
+         original, que não tinha onde declarar o alvo da candidatura;
+       · Competências-Chave como TABELA de duas colunas (categoria à
+         esquerda, conteúdo à direita) em vez de pílulas soltas: cabe mais
+         informação, e o parser de ATS lê par chave/valor melhor do que uma
+         nuvem de tags;
+       · datas da experiência alinhadas à direita, em cor de destaque;
+       · Formação e Idiomas numa seção só.
+
+     Tokens temáticos (#1837) preservados: sobrescritos por `style:` em
+     config/profile.yml, que o pipeline de PDF injeta como um :root posterior. */
+  :root {
+    --accent-color: hsl(187 74% 32%);
+    --header-bg: hsl(206 42% 18%);
+    --header-fg: #ffffff;
+    --header-muted: hsl(206 20% 78%);
+    --rule-color: hsl(206 15% 72%);
+    --zebra-bg: hsl(206 30% 96%);
+    --font-family: "Liberation Sans", 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif;
+    --font-size: 10.5px;
+    /* Precisa bater exatamente com o PDF_PAGE_MARGIN do generate-pdf.mjs: a
+       margem real vem da regra @page que injectPrintPageCss acrescenta depois,
+       lendo esta mesma variável. */
+    --page-margin: 0.55in;
+  }
+  @page { margin: var(--page-margin); }
+
+  /* Tipografia segura para ATS: as fontes variáveis empacotadas (Space Grotesk /
+     DM Sans) produzem avanços de glifo que fazem o extrator de texto do PDF
+     inserir espaços espúrios dentro das palavras ("SUM M ARY"), o que corrompe
+     a leitura de palavra-chave. Pilha de fontes de sistema, estática, verificada
+     limpa na extração. */
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    /* Desliga ligaduras fi/fl/ffi: o Chromium headless substitui esses pares
+       pelos glifos U+FB01/FB02/FB03 na diagramação, e o extrator os devolve
+       nesses codepoints — "verificação" vira "veriﬁcação" e a busca literal
+       por palavra-chave não encontra. */
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "clig" 0, "dlig" 0;
+  }
+
+  html {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    font-family: var(--font-family);
+    font-size: var(--font-size);
+    line-height: 1.45;
+    color: #1a1a2e;
+    background: #ffffff;
+    font-variant-ligatures: none;
+  }
+
+  .page {
+    max-width: {{PAGE_WIDTH}};
+    margin: 0 auto;
+  }
+
+  /* ── Cabeçalho ──────────────────────────────────────────────────────── */
+
+  .masthead {
+    background: var(--header-bg);
+    color: var(--header-fg);
+    padding: 20px 24px 16px;
+    /* Sangra até a borda da página, compensando a margem do @page. */
+    margin: calc(-1 * var(--page-margin)) calc(-1 * var(--page-margin)) 16px;
+  }
+
+  .masthead h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    line-height: 1.1;
+    margin-bottom: 5px;
+  }
+
+  /* A linha de posicionamento: cargo-alvo | domínio. É o que diz ao leitor,
+     em dois segundos, para qual vaga este currículo foi escrito. */
+  .tagline {
+    font-size: 12px;
+    color: var(--header-muted);
+    font-weight: 400;
+    margin-bottom: 12px;
+  }
+
+  .contact {
+    font-size: 10px;
+    color: var(--header-muted);
+  }
+  .contact a { color: var(--header-muted); text-decoration: none; }
+  .contact .sep { padding: 0 7px; opacity: 0.55; }
+
+  /* ── Seções ─────────────────────────────────────────────────────────── */
+
+  .section { margin-bottom: 13px; }
+
+  .section-title {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--header-bg);
+    padding-bottom: 3px;
+    border-bottom: 1.5px solid var(--rule-color);
+    margin-bottom: 8px;
+  }
+
+  .summary-text { text-align: justify; }
+  .summary-text strong { font-weight: 700; }
+
+  /* ── Competências em tabela ─────────────────────────────────────────── */
+
+  .competency-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .competency-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .competency-table tr:nth-child(odd) { background: var(--zebra-bg); }
+  .competency-table th {
+    width: 27%;
+    text-align: left;
+    vertical-align: top;
+    font-weight: 700;
+    padding: 5px 10px 5px 8px;
+    color: var(--header-bg);
+  }
+  .competency-table td {
+    vertical-align: top;
+    padding: 5px 8px 5px 0;
+  }
+
+  /* ── Experiência ────────────────────────────────────────────────────── */
+
+  .job { margin-bottom: 11px; break-inside: avoid-page; }
+
+  .job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .job-role { font-weight: 700; font-size: 11.5px; }
+  .job-period {
+    font-weight: 700;
+    font-size: 10px;
+    color: var(--accent-color);
+    white-space: nowrap;
+  }
+  .job-company {
+    font-style: italic;
+    color: #42526e;
+    margin-bottom: 4px;
+  }
+  .job-company .loc { font-style: normal; opacity: 0.8; }
+
+  .job ul { list-style: none; }
+  .job li {
+    position: relative;
+    padding-left: 11px;
+    margin-bottom: 2.5px;
+  }
+  .job li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--accent-color);
+  }
+
+  /* ── Projetos ───────────────────────────────────────────────────────── */
+
+  .project { margin-bottom: 7px; break-inside: avoid; }
+  .project-title { font-weight: 700; }
+  .project-badge {
+    font-weight: 400;
+    font-size: 9px;
+    color: #ffffff;
+    background: var(--accent-color);
+    padding: 1px 6px;
+    border-radius: 2px;
+    margin-left: 5px;
+  }
+
+  /* ── Formação, idiomas, cursos ──────────────────────────────────────── */
+
+  .plain-list { list-style: none; }
+  .plain-list li {
+    position: relative;
+    padding-left: 11px;
+    margin-bottom: 2.5px;
+  }
+  .plain-list li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--accent-color);
+  }
+  .plain-list .meta { color: #42526e; }
+
+  @media print {
+    .section { break-inside: auto; }
+    .section-title { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="masthead">
+    <h1>{{NAME}}</h1>
+    <div class="tagline">{{TAGLINE}}</div>
+    <div class="contact">
+      <span>{{LOCATION}}</span>
+      <span class="sep">•</span>
+      <a href="tel:{{PHONE}}">{{PHONE}}</a>
+      <span class="sep">•</span>
+      <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>
+      <span class="sep">•</span>
+      <a href="{{LINKEDIN_URL}}">{{LINKEDIN_DISPLAY}}</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">{{SECTION_SUMMARY}}</div>
+    <div class="summary-text">{{SUMMARY_TEXT}}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">{{SECTION_COMPETENCIES}}</div>
+    <table class="competency-table">
+      {{COMPETENCIES}}
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">{{SECTION_EXPERIENCE}}</div>
+    {{EXPERIENCE}}
+  </div>
+
+  <div class="section">
+    <div class="section-title">{{SECTION_PROJECTS}}</div>
+    {{PROJECTS}}
+  </div>
+
+  <div class="section">
+    <div class="section-title">{{SECTION_EDUCATION}}</div>
+    <ul class="plain-list">
+      {{EDUCATION}}
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-title">{{SECTION_CERTIFICATIONS}}</div>
+    <ul class="plain-list">
+      {{CERTIFICATIONS}}
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

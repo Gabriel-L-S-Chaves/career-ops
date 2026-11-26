@@ -35,7 +35,11 @@
 \addtolength{\textheight}{1.4in}
 \urlstyle{same}
 \raggedbottom
-\raggedright
+% 26/11/2026: o \raggedright global saiu daqui. Regra de casa em
+% modes/_custom.md: todo texto corrido em documento gerado e JUSTIFICADO.
+% O LaTeX ja justifica por padrao, entao basta nao forcar o alinhamento a
+% esquerda. Os cabecalhos de secao mantem o \raggedright proprio abaixo,
+% porque titulo justificado fica com espacamento irregular.
 \setlength{\tabcolsep}{0in}
 % Sections formatting
 \titleformat{\section}{

@@ -61,6 +61,47 @@ não "sem board". Essas empresas usam Gupy, e o slug precisa ser caçado à mão
 
 ---
 
+## 🎯 Slug de graça: o botão "Candidatar-se" do LinkedIn
+
+**Descoberto em 26/11/2026, depois de seis vagas seguidas chegarem por garimpo manual.**
+
+Quando o anúncio do LinkedIn diz *"Respostas gerenciadas fora do LinkedIn"*, o botão
+**Candidatar-se** aponta para o board real do empregador. O link vem embrulhado no
+redirecionador de segurança:
+
+```
+https://www.linkedin.com/safety/go/?url=https%3A%2F%2Fcerc%2Einhire%2Eapp%2F...
+```
+
+Decodificando o `url=`: `https://cerc.inhire.app/...` — **o slug do ATS, publicado pelo
+próprio empregador.**
+
+Isso é evidência melhor do que `resolve-boards.mjs`, que testa palpites. Aqui não há
+palpite: é o endereço que a empresa usa. Em 25–26/11 essa leitura rendeu quatro slugs
+confirmados — `cerc.inhire.app`, `projectivaholding.inhire.app`, `auvpcapital.gupy.io`
+e `sesigo.gupy.io` — sem uma requisição sequer.
+
+**Regra: toda vaga colada do LinkedIn tem o slug extraído e levado ao `portals.yml`,
+mesmo que a vaga em si seja descartada.** A vaga morre em uma semana; o board fica.
+
+Para Gupy, o token da URL também carrega o `jobId` em base64:
+
+```bash
+node -e "console.log(Buffer.from('eyJqb2JJZCI6...','base64').toString())"
+# {"jobId":12904807,"source":"linkedin"}
+```
+
+### InHire: provider pronto, lista vazia
+
+`providers/inhire.mjs` existe e funciona, e até 26/11 **nenhuma empresa estava
+configurada**. Três boards InHire apareceram em dois dias. É o inverso do problema da
+Gupy — lá o provider falha, aqui ele funciona e ninguém alimentou a lista.
+
+Empresa de fintech ou tecnologia brasileira sem board em Gupy, Greenhouse, Lever ou
+Ashby: **testar InHire antes de concluir que não tem board.**
+
+---
+
 ## Contexto obrigatório
 
 Antes de qualquer busca, carregar:

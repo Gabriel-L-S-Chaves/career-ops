@@ -17,8 +17,11 @@ import { stripEmptySections } from '../cv-sections-core.mjs';
 
 console.log('\ncv-sections-core.mjs — optional sections leave no bare header');
 
-const EMPTY = { projects: [], education: [], certifications: [] };
-const FULL = { projects: [{ name: 'P' }], education: [{ degree: 'D' }], certifications: [{ title: 'C' }] };
+// `skills` is populated in EMPTY on purpose: it is the boundary sentinel the
+// checks below use to prove a strip stops where it should, so it has to survive
+// here. Its own empty case is covered separately at the end of each loop.
+const EMPTY = { projects: [], education: [], certifications: [], skills: [{ category: 'C', items: 'x' }] };
+const FULL = { projects: [{ name: 'P' }], education: [{ degree: 'D' }], certifications: [{ title: 'C' }], skills: [{ category: 'C', items: 'x' }] };
 
 function check(label, actual, expected) {
   if (actual === expected) pass(label);
@@ -56,7 +59,18 @@ for (const { file, format, after, hasCertifications } of TEMPLATES) {
     stripEmptySections(template, FULL, format) === template, true);
 
   // One empty, one populated: only the empty one goes.
-  const onlyEdu = stripEmptySections(template, { projects: [{ name: 'P' }], education: [], certifications: [{ title: 'C' }] }, format);
+  // Skills alone empty: every other section survives and only the skills block
+  // goes. Before 26/11/2026 `skills` was not an optional section at all, so a
+  // payload without it rendered a bare "Skills" header — found on a lawyer's CV,
+  // where a skills grid has no place.
+  const skillsMarker = format === 'html' ? '<!-- SKILLS -->' : 'Technical Skills  %';
+  const onlySkills = stripEmptySections(template, { ...FULL, skills: [] }, format);
+  check(`${name}: empty skills alone drops the skills block`, onlySkills.includes(skillsMarker), false);
+  check(`${name}: empty skills alone keeps projects`, onlySkills.includes(projectsMarker), true);
+  check(`${name}: empty skills alone keeps education`, onlySkills.includes(educationMarker), true);
+  check(`${name}: empty skills alone keeps {{EXPERIENCE}}`, onlySkills.includes('{{EXPERIENCE}}'), true);
+
+  const onlyEdu = stripEmptySections(template, { projects: [{ name: 'P' }], education: [], certifications: [{ title: 'C' }], skills: [{ category: 'C', items: 'x' }] }, format);
   check(`${name}: empty education alone keeps projects`, onlyEdu.includes(projectsMarker), true);
   check(`${name}: empty education alone drops education`, onlyEdu.includes(educationMarker), false);
   if (hasCertifications) {
@@ -117,9 +131,12 @@ check('both sections empty: neither body survives',
   '<!-- SKILLS -->\nskills');
 
 // A missing key is as empty as an empty array — payloads routinely omit these.
-check('an absent projects key is treated as empty',
+// With `{}` nothing is populated, so every optional section goes, skills
+// included: before 26/11/2026 the trailing skills block survived an empty
+// payload and left a bare header behind.
+check('an absent key is treated as empty, for every optional section',
   stripEmptySections(bothEmpty, {}, 'html'),
-  '<!-- SKILLS -->\nskills');
+  '');
 
 // An unknown format is a programming error, not a silent pass-through.
 let threw = false;

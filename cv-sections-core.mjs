@@ -41,14 +41,20 @@ const PATTERNS = {
     projects: new RegExp(String.raw`<!--\s+PROJECTS\s+-->[\s\S]*?` + HTML_BOUNDARY),
     education: new RegExp(String.raw`<!--\s+EDUCATION\s+-->[\s\S]*?` + HTML_BOUNDARY),
     certifications: new RegExp(String.raw`<!--\s+CERTIFICATIONS\s+-->[\s\S]*?` + HTML_BOUNDARY),
+    skills: new RegExp(String.raw`<!--\s+SKILLS\s+-->[\s\S]*?` + HTML_BOUNDARY),
   },
   tex: {
     projects: new RegExp(String.raw`%{4,}\s+PROJECTS\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
     education: new RegExp(String.raw`%{4,}\s+Education\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
+    skills: new RegExp(String.raw`%{4,}\s+Technical Skills\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
   },
 };
 
-export const OPTIONAL_SECTIONS = ['projects', 'education', 'certifications'];
+// `skills` joined the list on 26/11/2026: a CV with no skills payload rendered a
+// bare "Skills" header with nothing under it — the exact failure this module
+// exists to prevent, just for the one section nobody had hit yet. Found while
+// building a non-technical CV (a lawyer's), where a skills grid has no place.
+export const OPTIONAL_SECTIONS = ['projects', 'education', 'certifications', 'skills'];
 
 export function isEmptySection(payload, section) {
   const entries = payload?.[section];

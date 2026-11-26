@@ -272,6 +272,17 @@ Ordem de preferência:
 
 Motivo da mudança: o candidato quer sair da empresa atual o quanto antes. Localização virou trade-off, não muro.
 
+#### ⚠️ "Remoto" declarado não é remoto confirmado (26/11/2026)
+
+**O campo de modalidade do ATS e do LinkedIn é marketing, não contrato.** Dois casos no mesmo dia:
+
+- **CERC** — o board InHire devolveu `BR (Remoto)` no `scan.mjs`. É híbrido na Av. Paulista. O usuário sabia; o sistema não.
+- **Vitta (grupo Stone)** — LinkedIn dizia "híbrido ou remoto". O Greenhouse da própria empresa dizia híbrido com dois dias presenciais em SP-Pinheiros.
+
+**Regra:** quando a modalidade for o critério que decide se a vaga entra ou sai, não confiar no campo do scan nem no do LinkedIn. Conferir no board do próprio empregador, e se lá também disser remoto sem endereço, **apresentar como "remoto a confirmar"**, nunca como remoto.
+
+Nunca montar currículo com base em modalidade não confirmada. O custo do erro é assimétrico: confirmar leva um minuto, montar material para uma vaga presencial em São Paulo gasta uma sessão inteira.
+
 ### 2. Idioma (CONTINUA ELIMINATÓRIO)
 `cv.md` declara inglês básico, em curso.
 
